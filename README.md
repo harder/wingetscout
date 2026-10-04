@@ -12,6 +12,8 @@
 
 A WinGet community package is being prepared as `Harder.WinGetScout`. Use the release ZIP until the [community submission](packaging/WINGET-SUBMISSION.md) is accepted.
 
+After that package is accepted, `winget install -e --id Harder.WinGetScout` will install the ZIP into WinGet's managed portable directory and add `wingetscout` to your user `PATH`. Open a **new terminal** to use the command from any folder. The WinGet manifest already requests this behavior; it does not require a separate installer or manual PATH editing. WinGet verifies the downloaded ZIP hash, but it does not sign the executable. See [signing and distribution](code-signing.md).
+
 > **Release availability:** The Scout filenames below will appear with the first Scout release. If they are not on the Releases page yet, Scout has not been published; see [Build from source](#build-from-source) to try the current code.
 
 1. Choose the ZIP for your Windows PC:
@@ -33,9 +35,9 @@ Scout requires Windows 10 or 11 and [WinGet](https://learn.microsoft.com/windows
 ### Other downloads
 
 - **Single executable:** `wingetscout-x64.exe` or `wingetscout-arm64.exe` is the smallest portable option. It runs through the `winget` CLI because the COM companion files are not included. Run the downloaded filename directly, for example `.\wingetscout-x64.exe`.
-- **MSIX:** If a **signed** `wingetscout-<version>-<architecture>.msix` is available, double-click it to install Scout as a Windows app. The release workflow publishes MSIX only when trusted signing is configured and signature verification succeeds.
+- **MSIX later:** A signed `wingetscout-<version>-<architecture>.msix` may be offered after public-trust signing is configured and tested. It is a separate package-identity installation option; the first WinGet submission uses ZIP.
 
-Portable downloads may be unsigned. If Windows shows a SmartScreen warning, verify that the file came from this repository's release page and compare its SHA-256 hash with the release's `SHA256SUMS` file before choosing **More info → Run anyway**. You can also right-click the downloaded file, open **Properties**, and select **Unblock** when Windows offers it. See [code signing](code-signing.md) for the current signing status.
+Portable downloads are currently unsigned. If Windows shows a SmartScreen warning, verify that the file came from this repository's release page and compare its SHA-256 hash with the release's `SHA256SUMS` file before choosing **More info → Run anyway**. You can also right-click the downloaded file, open **Properties**, and select **Unblock** when Windows offers it. See [code signing](code-signing.md) for the current signing status.
 
 ## What you can do
 

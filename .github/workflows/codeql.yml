@@ -15,8 +15,9 @@ permissions:
 
 jobs:
   analyze:
-    # Dependabot pull requests receive a read-only token, so SARIF upload is unavailable.
-    if: github.actor != 'dependabot[bot]'
+    # Code scanning accepts SARIF from pull_request runs with a read-only token.
+    # A Dependabot-authored push to main may not have upload permission.
+    if: github.event_name == 'pull_request' || github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

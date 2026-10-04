@@ -15,7 +15,7 @@
   pwsh ./packaging/build-msix.ps1 -Arch arm64 -SelfSigned -TestRegister
 
 .EXAMPLE
-  # CI: pack only (sign separately with Azure Trusted Signing, see code-signing.md):
+  # CI: pack only (sign separately with Azure Artifact Signing, see code-signing.md):
   pwsh ./packaging/build-msix.ps1 -Arch x64 -Version 0.1.3.0
 #>
 [CmdletBinding()]

@@ -9,7 +9,7 @@ name: Release
 # LICENSE into zips, computes SHA-256 checksums, and publishes a GitHub Release with
 # all artifacts attached.
 #
-# Portable downloads may be unsigned. MSIX is published only when signing is
+# Portable downloads are currently unsigned. MSIX is published only when signing is
 # configured and the completed package passes signature verification.
 
 on:
@@ -52,6 +52,19 @@ jobs:
             exit 1
           }
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Reject an already published tag
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                ...context.repo, tag: context.ref.replace('refs/tags/', ''),
+              });
+              core.setFailed(`Release already exists: ${release.data.html_url}. Publish a new version instead of rebuilding this tag.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
 
   workflow-lint:
     runs-on: ubuntu-latest
@@ -157,7 +170,7 @@ jobs:
           Write-Host "MSIX version=$msixVersion publisher=$publisher arch=$arch"
           ./packaging/build-msix.ps1 -Arch $arch -Version $msixVersion -Publisher $publisher
 
-      - name: Sign MSIX (Azure Trusted Signing)
+      - name: Sign MSIX (Azure Artifact Signing)
         if: steps.signing.outputs.enabled == 'true'
         uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
@@ -277,20 +290,18 @@ jobs:
           done
           ls -lh artifacts/
 
-      - name: Prepare WinGet community manifests
-        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
-        shell: pwsh
-        env:
-          VERSION: ${{ needs.validate-tag.outputs.version }}
-        run: ./packaging/new-winget-manifest.ps1 -Version $env:VERSION -AssetDirectory artifacts -OutputDirectory winget-manifests
-
-      - name: Save WinGet submission files
-        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Reject a release created during this workflow
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
-          name: winget-manifests-${{ needs.validate-tag.outputs.version }}
-          path: winget-manifests/
-          retention-days: 90
+          script: |
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                ...context.repo, tag: context.ref.replace('refs/tags/', ''),
+              });
+              core.setFailed(`Release already exists: ${release.data.html_url}. Refusing to replace its assets.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
 
       - name: Compose release notes
         run: |
@@ -305,7 +316,7 @@ jobs:
           - Standalone EXE (`wingetscout-<architecture>.exe`): uses the WinGet CLI backend because its COM companion files are not included.
           - `SHA256SUMS-*.txt`: checksums for each architecture's files.
 
-          Portable downloads may be unsigned. Compare the SHA-256 checksum before running a downloaded file. Build provenance attestations can be checked with `gh attestation verify <file> -R harder/wingetscout`.
+          Portable downloads are currently unsigned. Compare the SHA-256 checksum before running a downloaded file. Build provenance attestations can be checked with `gh attestation verify <file> -R harder/wingetscout`.
           EOF
           if compgen -G 'artifacts/*.msix' > /dev/null; then
             cat >> release-notes.md <<'EOF'
@@ -324,5 +335,34 @@ jobs:
           generate_release_notes: true
           append_body: true
           fail_on_unmatched_files: true
+          overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download the published ZIPs
+        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "v$VERSION" --pattern "wingetscout-$VERSION-win-*.zip" --dir published-assets
+          for arch in x64 arm64; do
+            cmp "artifacts/wingetscout-$VERSION-win-$arch.zip" "published-assets/wingetscout-$VERSION-win-$arch.zip"
+          done
+
+      - name: Prepare WinGet manifests from the published ZIPs
+        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        run: ./packaging/new-winget-manifest.ps1 -Version $env:VERSION -AssetDirectory published-assets -OutputDirectory winget-manifests
+
+      - name: Save WinGet submission files
+        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: winget-manifests-${{ needs.validate-tag.outputs.version }}
+          path: winget-manifests/
+          retention-days: 90

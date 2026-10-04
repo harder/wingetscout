@@ -3,6 +3,8 @@ bin/
 obj/
 publish/
 dist/
+/packaging/release-assets/
+/packaging/winget-manifests/
 *.nupkg
 *.snupkg
 
