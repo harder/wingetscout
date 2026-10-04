@@ -163,8 +163,9 @@ jobs:
             tests/bin/Release/net10.0/**
           retention-days: 7
 
-  critical-dependency-aot:
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+  native-aot-smoke:
+    name: Native AOT ${{ matrix.rid }}
+    if: github.event_name == 'pull_request'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
