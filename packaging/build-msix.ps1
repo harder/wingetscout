@@ -46,7 +46,7 @@ if (-not $SkipPublish) {
   Write-Host "==> Publishing WingetComMode=Identity AOT ($Arch)..."
   dotnet publish (Join-Path $repo 'WinGetScout.csproj') `
     -c Release -f net10.0-windows10.0.26100.0 -r "win-$Arch" `
-    -p:WingetComMode=Identity -p:Version=$Version -o $stage
+    -p:WingetComMode=Identity -p:RestoreLockedMode=true -p:Version=$Version -o $stage
   if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed (AOT publish on ARM64 needs a VS Dev Shell).' }
 }
 Remove-Item (Join-Path $stage '*.pdb') -Force -ErrorAction SilentlyContinue

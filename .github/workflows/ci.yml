@@ -86,6 +86,7 @@ jobs:
           cache: true
           cache-dependency-path: |
             packages.lock.json
+            packages.identity.lock.json
             tests/packages.lock.json
 
       - name: Compute CI build version
@@ -183,6 +184,7 @@ jobs:
           cache: true
           cache-dependency-path: |
             packages.lock.json
+            packages.identity.lock.json
             tests/packages.lock.json
       - name: Publish native Windows build
         run: dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:RestoreLockedMode=true -o publish/${{ matrix.rid }}
@@ -195,3 +197,15 @@ jobs:
           }
           & (Join-Path $folder 'wingetscout.exe') --smoke
           if ($LASTEXITCODE -ne 0) { throw "Native mock smoke failed: $LASTEXITCODE" }
+
+      - name: Publish MSIX Identity build with locked dependencies
+        run: dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:WingetComMode=Identity -p:RestoreLockedMode=true -o publish/identity-${{ matrix.rid }}
+      - name: Check Identity build metadata and mock startup
+        shell: pwsh
+        run: |
+          $folder = 'publish/identity-${{ matrix.rid }}'
+          foreach ($name in @('wingetscout.exe', 'Microsoft.Management.Deployment.winmd')) {
+            if (-not (Test-Path (Join-Path $folder $name))) { throw "Missing $name from Identity publish" }
+          }
+          & (Join-Path $folder 'wingetscout.exe') --smoke
+          if ($LASTEXITCODE -ne 0) { throw "Identity mock smoke failed: $LASTEXITCODE" }

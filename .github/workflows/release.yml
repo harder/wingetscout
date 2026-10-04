@@ -89,6 +89,7 @@ jobs:
           cache: true
           cache-dependency-path: |
             packages.lock.json
+            packages.identity.lock.json
             tests/packages.lock.json
       - name: Restore locked dependencies
         run: dotnet restore tests/WinGetScout.Tests.csproj --locked-mode
@@ -120,6 +121,7 @@ jobs:
           cache: true
           cache-dependency-path: |
             packages.lock.json
+            packages.identity.lock.json
             tests/packages.lock.json
 
       # -f selects the Windows TFM, which is what compiles in the COM backend (WINGET_COM)
@@ -290,17 +292,17 @@ jobs:
           done
           ls -lh artifacts/
 
-      - name: Reject a release created during this workflow
+      - name: Reject any release for this tag, including drafts
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
-            try {
-              const release = await github.rest.repos.getReleaseByTag({
-                ...context.repo, tag: context.ref.replace('refs/tags/', ''),
-              });
-              core.setFailed(`Release already exists: ${release.data.html_url}. Refusing to replace its assets.`);
-            } catch (error) {
-              if (error.status !== 404) throw error;
+            const tag = context.ref.replace('refs/tags/', '');
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              ...context.repo, per_page: 100,
+            });
+            const existing = releases.find(release => release.tag_name === tag);
+            if (existing) {
+              core.setFailed(`Release already exists for ${tag} (draft=${existing.draft}): ${existing.html_url}. Refusing to mix release assets.`);
             }
 
       - name: Compose release notes
@@ -325,9 +327,11 @@ jobs:
           EOF
           fi
 
-      - name: Publish release
+      - name: Upload assets to a draft release
+        id: staged-release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          draft: true
           prerelease: ${{ contains(needs.validate-tag.outputs.version, '-') }}
           files: |
             artifacts/*
@@ -338,6 +342,42 @@ jobs:
           overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the complete draft
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const crypto = require('crypto');
+            const release_id = Number('${{ steps.staged-release.outputs.id }}');
+            if (!Number.isSafeInteger(release_id)) throw new Error('Draft release ID was not returned');
+            const files = fs.readdirSync('artifacts', { withFileTypes: true })
+              .filter(entry => entry.isFile())
+              .map(entry => entry.name);
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, {
+              ...context.repo, release_id, per_page: 100,
+            });
+            if (assets.length !== files.length) {
+              throw new Error(`Draft has ${assets.length} assets; expected ${files.length}`);
+            }
+            for (const name of files) {
+              const asset = assets.find(item => item.name === name);
+              if (!asset || asset.state !== 'uploaded') {
+                throw new Error(`Draft asset missing or incomplete: ${name}`);
+              }
+              const file = path.join('artifacts', name);
+              const digest = `sha256:${crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`;
+              if (asset.size !== fs.statSync(file).size || asset.digest !== digest) {
+                throw new Error(`Draft asset differs from build artifact: ${name}`);
+              }
+            }
+            await github.rest.repos.updateRelease({
+              ...context.repo,
+              release_id,
+              draft: false,
+              prerelease: '${{ contains(needs.validate-tag.outputs.version, '-') }}' === 'true',
+            });
 
       - name: Download the published ZIPs
         if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}

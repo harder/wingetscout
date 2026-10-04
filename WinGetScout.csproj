@@ -43,6 +43,8 @@
                              out-of-process server. This is what the signed MSIX (download B) ships.
     -->
     <WingetComMode Condition="'$(WingetComMode)' == ''">InProc</WingetComMode>
+    <!-- The MSIX Identity graph omits InProcCom and needs its own NuGet lock file. -->
+    <NuGetLockFilePath Condition="'$(WingetComMode)' == 'Identity'">$(MSBuildProjectDirectory)/packages.identity.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 
   <!--
