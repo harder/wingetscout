@@ -1,6 +1,6 @@
 # Publish Scout in WinGet
 
-The community package ID is `Harder.WinGetScout`. Submit the **portable ZIP** for each architecture. Each ZIP contains `wingetscout.exe` and the WinGet in-process COM DLLs in one folder. The standalone EXE lacks those DLLs, and the MSIX requires a trusted signing certificate, so neither is the initial community manifest installer.
+The community package ID is `Harder.WinGetScout`. Submit the **portable ZIP** for each architecture. Each ZIP contains `wingetscout.exe` and the WinGet in-process COM DLLs in a stable `wingetscout/` folder. This path matters because scheduled update checks record the executable's absolute path. The standalone EXE lacks the COM DLLs, and the MSIX requires a trusted signing certificate, so neither is the initial community manifest installer.
 
 1. Merge and release a new Scout version with a matching `WinGetScout.csproj` `<Version>` and `v<version>` tag. The release workflow builds and attests the ZIPs, then uploads a `winget-manifests` workflow artifact containing the generated three-file manifest set.
 2. Download the published ZIPs and confirm their version-specific URLs and hashes match the generated installer manifest. The generator can also be run locally:

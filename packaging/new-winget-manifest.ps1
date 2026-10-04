@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $packageId = 'Harder.WinGetScout'
+$archiveFolder = 'wingetscout'
 $assetRoot = (Resolve-Path -LiteralPath $AssetDirectory).Path
 $destination = Join-Path $OutputDirectory "manifests/h/Harder/WinGetScout/$Version"
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
@@ -30,8 +31,8 @@ $installers = foreach ($arch in @('x64', 'arm64')) {
     $entries = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
     foreach ($required in @('wingetscout.exe', 'WindowsPackageManager.dll',
                             'Microsoft.Management.Deployment.InProc.dll')) {
-      if ($entries -cnotcontains "$bundle/$required") {
-        throw "$zip is missing $bundle/$required; it cannot be submitted as the COM package"
+      if ($entries -cnotcontains "$archiveFolder/$required") {
+        throw "$zip is missing $archiveFolder/$required; it cannot be submitted as the COM package"
       }
     }
   }
@@ -88,7 +89,7 @@ foreach ($item in $installers) {
 
 - Architecture: $($item.Arch)
   NestedInstallerFiles:
-  - RelativeFilePath: $($item.Bundle)/wingetscout.exe
+  - RelativeFilePath: $archiveFolder/wingetscout.exe
     PortableCommandAlias: wingetscout
   InstallerUrl: https://github.com/harder/wingetscout/releases/download/v$Version/$($item.Bundle).zip
   InstallerSha256: $($item.Hash)

@@ -214,12 +214,15 @@ jobs:
           # Portable bundle: the full publish output (exe + the in-process WinGet COM
           # engine — WindowsPackageManager.dll + Microsoft.Management.Deployment.InProc.dll
           # — so the COM backend activates) + docs, in a zip. Exclude the .pdb (symbols only).
-          New-Item -ItemType Directory -Path "stage/$bundleName" -Force | Out-Null
-          Copy-Item "publish/$rid/*"   "stage/$bundleName/" -Recurse -Exclude *.pdb
-          Copy-Item "README.md"        "stage/$bundleName/"
-          Copy-Item "LICENSE"          "stage/$bundleName/"
-          Copy-Item "feature-gaps.md"  "stage/$bundleName/"
-          Compress-Archive -Path "stage/$bundleName" -DestinationPath "dist/$bundleName.zip" -Force
+          # Keep the directory inside the archive stable across versions. Scheduled
+          # update checks record the executable's absolute path and must survive a
+          # WinGet portable upgrade that replaces the extracted files.
+          New-Item -ItemType Directory -Path "stage/wingetscout" -Force | Out-Null
+          Copy-Item "publish/$rid/*"   "stage/wingetscout/" -Recurse -Exclude *.pdb
+          Copy-Item "README.md"        "stage/wingetscout/"
+          Copy-Item "LICENSE"          "stage/wingetscout/"
+          Copy-Item "feature-gaps.md"  "stage/wingetscout/"
+          Compress-Archive -Path "stage/wingetscout" -DestinationPath "dist/$bundleName.zip" -Force
 
           # Checksum manifest, alphabetized so diff is stable.
           $hashes = Get-ChildItem dist/* |
