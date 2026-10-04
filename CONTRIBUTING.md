@@ -24,6 +24,11 @@ The repository selects Microsoft.Testing.Platform in `global.json`. Pass the pro
 `--project` as shown above; the older positional `dotnet test tests/...csproj` form is not
 accepted by this runner. IDE test discovery likewise requires Microsoft.Testing.Platform support.
 
+The same file pins the .NET SDK for reproducible locked restores. When updating that pin,
+install the new SDK, run `dotnet restore tests/WinGetScout.Tests.csproj --use-lock-file`,
+and commit both changed `packages.lock.json` files with `global.json`. CI reads the SDK
+version from `global.json` and restores in locked mode.
+
 ## Filing issues
 
 - **Bugs**: include the failing scenario, OS + architecture (x64 vs arm64), and where possible a `--dump` trace (e.g. `wingetscout --dump search vscode > dump.txt`).

@@ -36,7 +36,12 @@ test('critical releases create one assigned issue each and stay quiet on later r
     },
   };
   try {
-    const args = { github, context: { repo: { owner: 'harder', repo: 'wingetscout' } }, core: { info: () => {} } };
+    const args = {
+      github,
+      context: { repo: { owner: 'harder', repo: 'wingetscout' } },
+      core: { info: () => {} },
+      projectText: '<PackageReference Include="Terminal.Gui" Version="2.5.1-develop.44" />',
+    };
     await monitor(args);
     assert.equal(issues.length, 3);
     assert.ok(issues.every(issue => issue.assignees[0] === 'harder' && issue.labels[0] === 'critical-dependency'));

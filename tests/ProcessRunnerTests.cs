@@ -429,7 +429,9 @@ public sealed class ProcessRunnerTests : IDisposable
         Task<(int Code, string Output)> run = CliBackend.RunWithCodeAsync (
             command.Arguments,
             command.Executable,
-            TimeSpan.FromSeconds (3),
+            // Nested PowerShell startup on ARM64 can take several seconds before
+            // the child publishes its PID; leave room for setup before timing out.
+            TimeSpan.FromSeconds (8),
             TestContext.Current.CancellationToken);
 
         int childPid = await ReadPidAsync (pidFile, TestContext.Current.CancellationToken);

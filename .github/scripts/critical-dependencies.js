@@ -52,8 +52,7 @@ async function createOnce(github, core, owner, repo, title, body) {
   core.info(`Created ${issue.html_url}`);
 }
 
-async function checkTerminalGui(github, core, owner, repo) {
-  const project = fs.readFileSync('WinGetScout.csproj', 'utf8');
+async function checkTerminalGui(github, core, owner, repo, project) {
   const match = /<PackageReference Include="Terminal\.Gui" Version="([^"]+)"/.exec(project);
   if (!match) throw new Error('Terminal.Gui PackageReference was not found');
   const current = developVersion(match[1]);
@@ -121,10 +120,10 @@ ${suggestedChecks(release.body)}
   }
 }
 
-module.exports = async ({ github, context, core }) => {
+module.exports = async ({ github, context, core, projectText = fs.readFileSync('WinGetScout.csproj', 'utf8') }) => {
   const { owner, repo } = context.repo;
   await ensureLabel(github, owner, repo);
-  await checkTerminalGui(github, core, owner, repo);
+  await checkTerminalGui(github, core, owner, repo, projectText);
   await checkWinget(github, core, owner, repo);
 };
 

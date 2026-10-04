@@ -30,3 +30,11 @@ updates:
       interval: monthly
     assignees: [harder]
     open-pull-requests-limit: 10
+
+  # Keep the SDK pin visible. SDK PRs also need regenerated NuGet lock files.
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: monthly
+    assignees: [harder]
+    open-pull-requests-limit: 5
