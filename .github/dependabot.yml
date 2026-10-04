@@ -1,15 +1,25 @@
 version: 2
 updates:
-  # NuGet — track Terminal.Gui develop prereleases and xUnit stable.
+  # Include both project manifests and indirect packages. Keep the WinGet COM
+  # projection and engine together; they must use the same package version.
   - package-ecosystem: nuget
-    directory: /
+    directories:
+      - /
+      - /tests
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+      time: '09:00'
+      timezone: America/Chicago
+    allow:
+      - dependency-type: all
+    assignees: [harder]
+    open-pull-requests-limit: 10
     groups:
       terminal-gui:
-        patterns: ['Terminal.Gui*']
+        patterns: ['Terminal.Gui']
+      winget-com:
+        patterns: ['Microsoft.WindowsPackageManager.*']
       xunit:
         patterns: ['xunit*', 'Microsoft.NET.Test.Sdk']
 
@@ -18,4 +28,5 @@ updates:
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    assignees: [harder]
+    open-pull-requests-limit: 10

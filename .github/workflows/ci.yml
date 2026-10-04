@@ -20,10 +20,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Lint GitHub Actions workflows
-        uses: rhysd/actionlint@v1.7.12
+        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+
+      - name: Test critical dependency monitor
+        run: node --test .github/scripts/critical-dependencies.test.js
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject newly vulnerable dependencies
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
 
   linux-runtime-tests:
     name: Linux runtime tests
@@ -31,15 +41,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore tests/WinGetScout.Tests.csproj
+        run: dotnet restore tests/WinGetScout.Tests.csproj --locked-mode
 
       - name: Build cross-platform application
         run: dotnet build WinGetScout.csproj --no-restore --configuration Release --framework net10.0
@@ -67,17 +77,16 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
           cache: true
           cache-dependency-path: |
-            WinGetScout.csproj
-            tests/WinGetScout.Tests.csproj
+            packages.lock.json
+            tests/packages.lock.json
 
       - name: Compute CI build version
         id: version
@@ -88,7 +97,7 @@ jobs:
           echo "ci_version=$CI_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Restore
-        run: dotnet restore tests/WinGetScout.Tests.csproj
+        run: dotnet restore tests/WinGetScout.Tests.csproj --locked-mode
 
       - name: Build cross-platform application
         run: >
@@ -146,10 +155,38 @@ jobs:
           }
 
       - name: Upload CI build outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wingetscout-${{ steps.version.outputs.ci_version }}-win-build
           path: |
             bin/Release/net10.0/**
             tests/bin/Release/net10.0/**
           retention-days: 7
+
+  critical-dependency-aot:
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: |
+            packages.lock.json
+            tests/packages.lock.json
+      - name: Publish native Windows build
+        run: dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:RestoreLockedMode=true -o publish/${{ matrix.rid }}
+      - name: Check packaged COM files and mock startup
+        shell: pwsh
+        run: |
+          $folder = 'publish/${{ matrix.rid }}'
+          foreach ($name in @('wingetscout.exe', 'WindowsPackageManager.dll', 'Microsoft.Management.Deployment.InProc.dll')) {
+            if (-not (Test-Path (Join-Path $folder $name))) { throw "Missing $name from native publish" }
+          }
+          & (Join-Path $folder 'wingetscout.exe') --smoke
+          if ($LASTEXITCODE -ne 0) { throw "Native mock smoke failed: $LASTEXITCODE" }

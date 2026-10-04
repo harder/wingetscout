@@ -1,6 +1,6 @@
 # Code signing the Windows executables
 
-> **Status: recommended next step.** wingetscout is now used as a daily winget TUI, so
+> **Status: trusted signing is optional for releases; signed MSIX is gated on it.** wingetscout is now used as a daily winget TUI, so
 > the SmartScreen friction below hits real users on every fresh download — this is worth
 > acting on, not just researching. This doc captures the options investigated, what they
 > cost, what they buy you, and the recommended path: apply for **SignPath.io**'s OSS
@@ -114,7 +114,7 @@ Key facts:
 - **No `Microsoft.DesktopAppInstaller` `<PackageDependency>` is needed** — winget's server is an
   in-box system component; you just rely on it being present (recent Win10/11; LTSC/Server SKUs may
   lack it).
-- **Cost of "B" = a cert.** MSIX is unsigned-installable only under Developer Mode; real users need
+- **Cost of "B" = a cert.** Production MSIX packages need a trusted signing certificate; real users need
   a signed package, so download B is gated on adopting one of options #1–#3 above (Artifact Signing
   at ~$10/mo, or SignPath OSS, being the realistic picks).
 
@@ -130,31 +130,11 @@ Or right-click the exe → *Properties* → *Unblock* checkbox → *OK*. After u
 
 For users who download via `gh release download`, this is a one-liner per machine.
 
-## Implementation sketch (Azure Trusted Signing)
+## Release workflow signing setup
 
-If you adopt Azure Trusted Signing, the release workflow change is small. Add to `.github/workflows/release.yml` after the AOT publish step, before the package step:
+The release workflow signs and verifies MSIX packages when all seven values are configured. Add repository secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`, and repository variables `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE`, and `MSIX_PUBLISHER`. The publisher must match the certificate subject. A partial configuration or signing failure stops the release. Without these values, the workflow publishes portable ZIP and EXE assets but no MSIX.
 
-```yaml
-- uses: azure/login@v2
-  with:
-    creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-- uses: azure/trusted-signing-action@v0.5.0
-  with:
-    azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-    azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-    azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-    endpoint: https://wus2.codesigning.azure.net/   # adjust to your region
-    signing-account-name: <your-signing-account>
-    certificate-profile-name: <your-profile>
-    files-folder: ${{ github.workspace }}/publish/${{ matrix.rid }}
-    files-folder-filter: exe
-    file-digest: SHA256
-    timestamp-rfc3161: http://timestamp.acs.microsoft.com
-    timestamp-digest: SHA256
-```
-
-The four `AZURE_*` secrets come from the Entra ID app registration you create during Azure Trusted Signing setup. Once added, every release-built `.exe` gets signed before packaging.
+The portable executables are currently unsigned even when the MSIX is signed. Artifact attestations and SHA-256 checksums are published for those assets, but neither replaces Windows code signing.
 
 ## References
 
