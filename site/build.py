@@ -21,7 +21,7 @@ class References(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         for name, value in attrs:
-            if name in {"href", "src"} and value:
+            if name in {"href", "src", "data-static-src", "data-animated-src"} and value:
                 self.values.append(value)
 
 
