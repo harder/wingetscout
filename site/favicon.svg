@@ -1,5 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="13" fill="#e9f4ff"/>
-  <path d="M10 13h20v20H10z" fill="#1874d0"/><path d="M34 13h20v20H34z" fill="#56aaf0"/>
-  <path d="M10 37h20v17H10z" fill="#358cde"/><path d="M34 37h20v17H34z" fill="#0d5daf"/>
+  <rect width="64" height="64" rx="15" fill="#f8e9d1"/>
+  <path d="M16 22C6 25 7 38 16 42l8-8-2-10Zm32 0c10 3 9 16 0 20l-8-8 2-10Z" fill="#7b4b4b" stroke="#382d3b" stroke-width="2"/>
+  <path d="M16 27c1-12 8-19 16-19s15 7 16 19c1 17-6 26-16 26s-17-9-16-26Z" fill="#ca7954" stroke="#382d3b" stroke-width="2.5"/>
+  <path d="M22 36c1-7 5-10 10-8 5-2 9 1 10 8-1 7-5 11-10 11s-9-4-10-11Z" fill="#f6d7ab"/>
+  <circle cx="25" cy="29" r="2" fill="#382d3b"/><circle cx="39" cy="29" r="2" fill="#382d3b"/>
+  <path d="M28 37c1-3 7-3 8 0-1 3-3 5-4 5s-3-2-4-5Z" fill="#382d3b"/>
+  <path d="M18 48h28l-3 12H21Z" fill="#e7b57f" stroke="#382d3b" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M22 48 32 53l10-5m-10 5v7" fill="none" stroke="#382d3b" stroke-width="2"/>
 </svg>

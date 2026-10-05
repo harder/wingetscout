@@ -10,13 +10,22 @@ if (sectionLinks.length && 'IntersectionObserver' in window) {
   document.querySelectorAll('.docs-content section[id]').forEach(section => observer.observe(section));
 }
 
-const tourImage = document.querySelector('[data-tour-image]');
-const tourToggle = document.querySelector('[data-tour-toggle]');
-if (tourImage && tourToggle) {
-  tourToggle.addEventListener('click', () => {
-    const playing = tourToggle.getAttribute('aria-pressed') !== 'true';
-    tourToggle.setAttribute('aria-pressed', String(playing));
-    tourToggle.textContent = playing ? 'Pause tour' : 'Play tour';
-    tourImage.src = playing ? tourImage.dataset.animatedSrc : tourImage.dataset.staticSrc;
-  });
+const themePicker = document.querySelector('[data-theme-picker]');
+if (themePicker) {
+  const image = themePicker.querySelector('[data-theme-image]');
+  const title = themePicker.querySelector('[data-theme-title]');
+  const caption = themePicker.querySelector('[data-theme-caption]');
+  const choices = [...themePicker.querySelectorAll('.theme-choice')];
+
+  choices.forEach(choice => choice.addEventListener('click', () => {
+    choices.forEach(button => {
+      const selected = button === choice;
+      button.setAttribute('aria-pressed', String(selected));
+      button.classList.toggle('is-active', selected);
+    });
+    image.src = choice.dataset.themeSrc;
+    image.alt = choice.dataset.themeAlt;
+    title.textContent = choice.dataset.themeTitle;
+    caption.textContent = choice.dataset.themeCaption;
+  }));
 }
