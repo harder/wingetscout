@@ -9,8 +9,9 @@ SOURCE = Path(__file__).resolve().parent
 OUTPUT = SOURCE / "_build"
 FILES = (
     "index.html", "docs.html", "styles.css", "app.js", "favicon.svg",
-    "CNAME", "robots.txt", "sitemap.xml", "media/scout-discover.png",
-    "media/scout-installed.png", "media/scout-tour.gif",
+    "CNAME", "robots.txt", "sitemap.xml", "media/scout-dog.svg",
+    "media/scout-sage-search.png", "media/scout-amber-installed.png",
+    "media/scout-moss-upgrades.png", "media/scout-rose-search.png",
 )
 
 
@@ -21,7 +22,7 @@ class References(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         for name, value in attrs:
-            if name in {"href", "src", "data-static-src", "data-animated-src"} and value:
+            if name in {"href", "src", "data-theme-src"} and value:
                 self.values.append(value)
 
 

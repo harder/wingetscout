@@ -1,15 +1,19 @@
-# WinGet Scout website
+# Scout for WinGet website
 
 The website lives in `site/` and is deployed by [Pages](../.github/workflows/pages.yml)
 when site files reach `main`. It uses plain HTML, CSS, JavaScript, and Python's standard
 library. [SkillView](https://github.com/harder/gh-skillview) uses the same build/deploy
-shape, but this site has its own Windows-inspired design.
+shape, but this site has its own warm, window-inspired design and original dog mascot.
 
 Run `python site/build.py` from the repository root to copy published files to
 `site/_build/` and check local links. The Pages workflow runs the same check on PRs.
-The real application captures in `site/media/` were recorded with
-[tuirec](https://github.com/tui-cs/tuirec) in `--mock` mode. They show demo data and do not
-change installed packages.
+The four theme screenshots in `site/media/` were recorded from the v0.2.0
+application with [tuirec](https://github.com/tui-cs/tuirec) in `--mock` mode.
+They show demo data and do not change installed packages. To refresh them, run
+`site/capture-themes.ps1 -AppPath <path-to-wingetscout.exe> -TuirecPath <path-to-tuirec.exe>`
+on Windows. The script removes `NO_COLOR` for its child processes and requests
+true color, so the built-in Sage, Amber, Moss & Olive, and Dusty Rose palettes
+remain distinguishable in captures.
 
 ## Set up wingetscout.com
 

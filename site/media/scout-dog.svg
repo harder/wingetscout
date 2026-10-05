@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Scout the package dog</title>
+  <desc id="desc">A friendly terrier carrying a parcel.</desc>
+  <circle cx="128" cy="128" r="119" fill="#f8e9d1"/>
+  <circle cx="128" cy="128" r="116" fill="none" stroke="#e7cdaa" stroke-width="2"/>
+  <path d="M59 79C37 84 30 112 44 135c9 15 27 17 41 8L92 97Z" fill="#7b4b4b" stroke="#382d3b" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M197 79c22 5 29 33 15 56-9 15-27 17-41 8l-7-46Z" fill="#7b4b4b" stroke="#382d3b" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M70 92c5-32 28-48 58-48s53 16 58 48c7 40-7 83-58 89-51-6-65-49-58-89Z" fill="#ca7954" stroke="#382d3b" stroke-width="5"/>
+  <path d="M105 52c3 16 11 24 23 29 12-5 20-13 23-29-14-6-32-6-46 0Z" fill="#f2c994"/>
+  <path d="M86 118c-6 23 7 45 28 50l14 4 14-4c21-5 34-27 28-50-9-14-25-20-42-15-17-5-33 1-42 15Z" fill="#f6d7ab"/>
+  <ellipse cx="103" cy="111" rx="5" ry="7" fill="#382d3b"/><ellipse cx="153" cy="111" rx="5" ry="7" fill="#382d3b"/>
+  <circle cx="105" cy="109" r="1.5" fill="#fff8eb"/><circle cx="155" cy="109" r="1.5" fill="#fff8eb"/>
+  <path d="M119 128c3-5 15-5 18 0 0 6-5 11-9 11s-9-5-9-11Z" fill="#382d3b"/>
+  <path d="M128 139v7m0 0c-5 6-12 8-18 4m18-4c5 6 12 8 18 4" fill="none" stroke="#382d3b" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="83" cy="129" r="6" fill="#df9777" opacity=".75"/><circle cx="173" cy="129" r="6" fill="#df9777" opacity=".75"/>
+  <path d="M104 167l24 26 24-26" fill="#4d7267" stroke="#382d3b" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M57 174 127 153l73 21-10 52H66Z" fill="#e7b57f" stroke="#382d3b" stroke-width="5" stroke-linejoin="round"/>
+  <path d="m57 174 70 20 73-20m-73 20v32" fill="none" stroke="#382d3b" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m107 159 21 7 21-7 16 5-37 11-37-11Z" fill="#fff0d4" stroke="#382d3b" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m119 166 9 3 9-3v26l-9 3-9-3Z" fill="#fff0d4"/>
+  <path d="M65 169c-1-9 6-16 15-16 10 0 16 8 15 18l-3 13-22-2Z" fill="#f2c994" stroke="#382d3b" stroke-width="4"/>
+  <path d="M191 169c1-9-6-16-15-16-10 0-16 8-15 18l3 13 22-2Z" fill="#f2c994" stroke="#382d3b" stroke-width="4"/>
+  <path d="M76 171v5m9-6v5m95-4v5m-9-6v5" stroke="#aa694f" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M176 209h9m-4-5v10" stroke="#a66a51" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
