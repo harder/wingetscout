@@ -9,76 +9,120 @@ name: Release
 # LICENSE into zips, computes SHA-256 checksums, and publishes a GitHub Release with
 # all artifacts attached.
 #
-# No code signing — that requires an Azure Trusted Signing account. Users will see SmartScreen warnings until
-# the binaries build enough reputation. The SHA256SUMS files let users verify integrity.
+# Portable downloads are currently unsigned. MSIX is published only when signing is
+# configured and the completed package passes signature verification.
 
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (without leading v, e.g. 0.1.0). Required for manual runs.'
-        required: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Check tag, project version, and main ancestry
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Use a vMAJOR.MINOR.PATCH tag, optionally with a prerelease suffix"
+            exit 1
+          fi
+          project_version="$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' WinGetScout.csproj | head -1)"
+          if [ "$version" != "$project_version" ]; then
+            echo "::error::Tag $version does not match WinGetScout.csproj $project_version"
+            exit 1
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::Release tag must point to a commit on main"
+            exit 1
+          }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Reject an already published tag
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                ...context.repo, tag: context.ref.replace('refs/tags/', ''),
+              });
+              core.setFailed(`Release already exists: ${release.data.html_url}. Publish a new version instead of rebuilding this tag.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
   workflow-lint:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Lint GitHub Actions workflows
-        uses: rhysd/actionlint@v1.7.12
+        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+
+      - name: Test critical dependency monitor
+        run: node --test .github/scripts/critical-dependencies.test.js
+
+  tests:
+    needs: [validate-tag, workflow-lint]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            packages.lock.json
+            packages.identity.lock.json
+            tests/packages.lock.json
+      - name: Restore locked dependencies
+        run: dotnet restore tests/WinGetScout.Tests.csproj --locked-mode
+      - name: Run tests
+        run: dotnet test --project tests/WinGetScout.Tests.csproj -c Release --no-restore --minimum-expected-tests 245
+      - name: Smoke test
+        run: dotnet run --project WinGetScout.csproj -c Release -f net10.0 --no-restore -- --smoke
 
   build:
-    needs: workflow-lint
+    needs: [validate-tag, tests]
     name: Build ${{ matrix.rid }}
     runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
         rid: [win-x64, win-arm64]
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
+          global-json-file: global.json
           cache: true
           cache-dependency-path: |
-            WinGetScout.csproj
-            tests/WinGetScout.Tests.csproj
-
-      - name: Resolve version
-        id: version
-        shell: bash
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
-          else
-            REF="${GITHUB_REF#refs/tags/}"
-            VERSION="${REF#v}"
-          fi
-          # Validate: digits-and-dots with optional prerelease suffix
-          if ! echo "$VERSION" | grep -Eq '^[0-9A-Za-z.+-]+$'; then
-            echo "::error::Invalid version: $VERSION"
-            exit 2
-          fi
-          echo "Version: $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            packages.lock.json
+            packages.identity.lock.json
+            tests/packages.lock.json
 
       # -f selects the Windows TFM, which is what compiles in the COM backend (WINGET_COM)
       # and pulls the in-process WinGet engine into the publish folder. Without it, the
@@ -89,41 +133,48 @@ jobs:
           -f net10.0-windows10.0.26100.0
           -r ${{ matrix.rid }}
           -o publish/${{ matrix.rid }}
-          /p:Version=${{ steps.version.outputs.version }}
+          -p:RestoreLockedMode=true
+          /p:Version=${{ needs.validate-tag.outputs.version }}
 
-      # Download B: a signed MSIX whose package identity lets the AOT exe reach the in-box
-      # out-of-process WinGet server, shipping only the ~61 KB projection winmd (not the 7 MB
-      # in-process engine). See com-activation.md. Built pack-only here; signed by the next step.
-      - name: Build MSIX (download B)
-        continue-on-error: true   # experimental; never block the exe/zip downloads
+      - name: Check signing configuration
+        id: signing
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+        run: |
+          $names = @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET',
+                     'AZURE_SIGNING_ENDPOINT', 'AZURE_SIGNING_ACCOUNT',
+                     'AZURE_SIGNING_PROFILE', 'MSIX_PUBLISHER')
+          $present = @($names | Where-Object { -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
+          if ($present.Count -ne 0 -and $present.Count -ne $names.Count) {
+            throw "MSIX signing is partly configured. Configure all seven secrets/variables or none."
+          }
+          "enabled=$($present.Count -eq $names.Count)".ToLowerInvariant() >> $env:GITHUB_OUTPUT
+
+      # The portable ZIP is the initial WinGet package. MSIX is optional until
+      # signing is configured, but a configured signing failure blocks release.
+      - name: Build MSIX
+        if: steps.signing.outputs.enabled == 'true'
         shell: pwsh
         run: |
           $arch = "${{ matrix.rid }}" -replace '^win-', ''
           # Appx Version must be 4-part numeric with no prerelease suffix.
-          $v = "${{ steps.version.outputs.version }}" -replace '[-+].*$', ''
+          $v = "${{ needs.validate-tag.outputs.version }}" -replace '[-+].*$', ''
           $p = @($v.Split('.')); while ($p.Count -lt 3) { $p += '0' }
           $msixVersion = ($p[0..2] -join '.') + '.0'
           $publisher = "${{ vars.MSIX_PUBLISHER }}"
-          if (-not $publisher) { $publisher = 'CN=wingetscout (Dev)' }
           Write-Host "MSIX version=$msixVersion publisher=$publisher arch=$arch"
           ./packaging/build-msix.ps1 -Arch $arch -Version $msixVersion -Publisher $publisher
 
-      # Sign the MSIX with Azure Trusted Signing when configured (see code-signing.md). vars.MSIX_PUBLISHER
-      # must equal the certificate subject. Skipped when secrets are absent — the resulting MSIX is then
-      # unsigned and installs only under Developer Mode, so configure signing before shipping B to users.
-      - name: Detect Azure Trusted Signing configuration
-        id: trusted-signing
-        shell: pwsh
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        run: |
-          $configured = -not [string]::IsNullOrWhiteSpace($env:AZURE_CLIENT_ID)
-          "configured=$($configured.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-
-      - name: Sign MSIX (Azure Trusted Signing)
-        if: steps.trusted-signing.outputs.configured == 'true'
-        continue-on-error: true
-        uses: azure/trusted-signing-action@v2.0.0
+      - name: Sign MSIX (Azure Artifact Signing)
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -137,10 +188,24 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      - name: Verify signed MSIX
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $msix = @(Get-ChildItem dist -Filter '*.msix')
+          if ($msix.Count -ne 1) { throw "Expected one MSIX for ${{ matrix.rid }}" }
+          $kit = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $tool = Get-ChildItem $kit -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $tool) { throw 'signtool.exe not found' }
+          & $tool.FullName verify /pa /v $msix[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'MSIX signature verification failed' }
+
       - name: Package artifacts
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.version }}"
+          $version = "${{ needs.validate-tag.outputs.version }}"
           $rid = "${{ matrix.rid }}"
           $bundleName = "wingetscout-$version-$rid"
           $exeSuffix = switch ($rid) {
@@ -157,15 +222,22 @@ jobs:
           # only the zip below bundles.
           Copy-Item "publish/$rid/wingetscout.exe" "dist/wingetscout-$exeSuffix.exe"
 
+          foreach ($name in @('wingetscout.exe', 'WindowsPackageManager.dll', 'Microsoft.Management.Deployment.InProc.dll')) {
+            if (-not (Test-Path "publish/$rid/$name")) { throw "Native publish is missing $name" }
+          }
+
           # Portable bundle: the full publish output (exe + the in-process WinGet COM
           # engine — WindowsPackageManager.dll + Microsoft.Management.Deployment.InProc.dll
           # — so the COM backend activates) + docs, in a zip. Exclude the .pdb (symbols only).
-          New-Item -ItemType Directory -Path "stage/$bundleName" -Force | Out-Null
-          Copy-Item "publish/$rid/*"   "stage/$bundleName/" -Recurse -Exclude *.pdb
-          Copy-Item "README.md"        "stage/$bundleName/"
-          Copy-Item "LICENSE"          "stage/$bundleName/"
-          Copy-Item "feature-gaps.md"  "stage/$bundleName/"
-          Compress-Archive -Path "stage/$bundleName" -DestinationPath "dist/$bundleName.zip" -Force
+          # Keep the directory inside the archive stable across versions. Scheduled
+          # update checks record the executable's absolute path and must survive a
+          # WinGet portable upgrade that replaces the extracted files.
+          New-Item -ItemType Directory -Path "stage/wingetscout" -Force | Out-Null
+          Copy-Item "publish/$rid/*"   "stage/wingetscout/" -Recurse -Exclude *.pdb
+          Copy-Item "README.md"        "stage/wingetscout/"
+          Copy-Item "LICENSE"          "stage/wingetscout/"
+          Copy-Item "feature-gaps.md"  "stage/wingetscout/"
+          Compress-Archive -Path "stage/wingetscout" -DestinationPath "dist/$bundleName.zip" -Force
 
           # Checksum manifest, alphabetized so diff is stable.
           $hashes = Get-ChildItem dist/* |
@@ -179,8 +251,13 @@ jobs:
           Write-Host "Produced:"
           Get-ChildItem dist | ForEach-Object { Write-Host "  $($_.Name)  ($([math]::Round($_.Length / 1MB, 2)) MB)" }
 
+      - name: Attest release artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/*
+
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.rid }}
           path: dist/
@@ -188,69 +265,144 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [validate-tag, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artifacts/
           merge-multiple: true
 
-      - name: List downloaded artifacts
-        run: ls -lh artifacts/
+      - name: Verify required release assets
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in x64 arm64; do
+            test -s "artifacts/wingetscout-$arch.exe"
+            test -s "artifacts/wingetscout-$VERSION-win-$arch.zip"
+            test -s "artifacts/SHA256SUMS-win-$arch.txt"
+          done
+          ls -lh artifacts/
+
+      - name: Reject any release for this tag, including drafts
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              ...context.repo, per_page: 100,
+            });
+            const existing = releases.find(release => release.tag_name === tag);
+            if (existing) {
+              core.setFailed(`Release already exists for ${tag} (draft=${existing.draft}): ${existing.html_url}. Refusing to mix release assets.`);
+            }
 
       - name: Compose release notes
-        env:
-          VERSION: ${{ needs.build.outputs.version }}
         run: |
-          cat > release-notes.md <<EOF
+          cat > release-notes.md <<'EOF'
           # Scout for WinGet
 
           Scout for WinGet manages real Windows packages. Install, upgrade, uninstall, and repair actions change your package state. See the [README](https://github.com/${{ github.repository }}#readme) for setup and usage.
 
           ## Downloads
 
-          Three ways to run it; pick by how much you want the COM features (Verify, Repair, install preview, richer detail, live progress) vs. zero-install simplicity. See [com-activation.md](https://github.com/${{ github.repository }}/blob/main/com-activation.md).
+          - Portable ZIP (`wingetscout-<version>-win-<architecture>.zip`): the complete COM build. Extract the folder and run `wingetscout.exe`.
+          - Standalone EXE (`wingetscout-<architecture>.exe`): uses the WinGet CLI backend because its COM companion files are not included.
+          - `SHA256SUMS-*.txt`: checksums for each architecture's files.
 
-          | File | Backend | Install | Notes |
-          |------|---------|---------|-------|
-          | \`wingetscout-${VERSION}-{x64,arm64}.msix\` | **COM** | yes (signed) | **Download B** — package identity → COM, smallest footprint. Requires the package to be signed (see below). |
-          | \`wingetscout-${VERSION}-win-{x64,arm64}.zip\` | **COM** | no (portable) | Exe + in-process engine + docs. COM with no install, no signing — the no-fuss COM option. |
-          | \`wingetscout-{x64,arm64}.exe\` | CLI | no (portable) | **Download A** — single exe, \`winget\` CLI backend, no COM features. |
-          | \`SHA256SUMS-*.txt\` | — | — | Per-architecture checksums |
-
-          ## Quick start
-
-          - **Just run it (CLI):** download the \`.exe\` for your architecture and run it.
-          - **COM, no install:** download the \`.zip\`, extract, run \`wingetscout.exe\` from the folder (the in-process engine sits beside it).
-          - **COM, installed (MSIX):** download the \`.msix\` and double-click. *Unsigned MSIX builds install only with Developer Mode enabled; a properly signed release installs normally.*
-
-          \`\`\`powershell
-          # Verify a download (PowerShell)
-          Get-FileHash .\wingetscout-x64.exe -Algorithm SHA256
-          # Compare against SHA256SUMS-win-x64.txt
-          \`\`\`
-
-          The portable downloads may be unsigned. Verify the release and its SHA-256 checksum before approving a SmartScreen prompt or unblocking a downloaded file.
+          Portable downloads are currently unsigned. Compare the SHA-256 checksum before running a downloaded file. Build provenance attestations can be checked with `gh attestation verify <file> -R harder/wingetscout`.
           EOF
+          if compgen -G 'artifacts/*.msix' > /dev/null; then
+            cat >> release-notes.md <<'EOF'
 
-      - name: Publish release
-        uses: softprops/action-gh-release@v3
+          Signed MSIX packages are also available for installed, package-identity COM operation.
+          EOF
+          fi
+
+      - name: Upload assets to a draft release
+        id: staged-release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          draft: true
+          prerelease: ${{ contains(needs.validate-tag.outputs.version, '-') }}
           files: |
-            artifacts/*.exe
-            artifacts/*.zip
-            artifacts/*.msix
-            artifacts/SHA256SUMS-*.txt
+            artifacts/*
           body_path: release-notes.md
           generate_release_notes: true
           append_body: true
-          # false so an experimental MSIX that didn't build doesn't fail the release; the exe/zip/
-          # sums always exist because this job only runs after `build` succeeds.
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
+          overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the complete draft
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const crypto = require('crypto');
+            const release_id = Number('${{ steps.staged-release.outputs.id }}');
+            if (!Number.isSafeInteger(release_id)) throw new Error('Draft release ID was not returned');
+            const files = fs.readdirSync('artifacts', { withFileTypes: true })
+              .filter(entry => entry.isFile())
+              .map(entry => entry.name);
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, {
+              ...context.repo, release_id, per_page: 100,
+            });
+            if (assets.length !== files.length) {
+              throw new Error(`Draft has ${assets.length} assets; expected ${files.length}`);
+            }
+            for (const name of files) {
+              const asset = assets.find(item => item.name === name);
+              if (!asset || asset.state !== 'uploaded') {
+                throw new Error(`Draft asset missing or incomplete: ${name}`);
+              }
+              const file = path.join('artifacts', name);
+              const digest = `sha256:${crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`;
+              if (asset.size !== fs.statSync(file).size || asset.digest !== digest) {
+                throw new Error(`Draft asset differs from build artifact: ${name}`);
+              }
+            }
+            await github.rest.repos.updateRelease({
+              ...context.repo,
+              release_id,
+              draft: false,
+              prerelease: '${{ contains(needs.validate-tag.outputs.version, '-') }}' === 'true',
+            });
+
+      - name: Download the published ZIPs
+        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "v$VERSION" --pattern "wingetscout-$VERSION-win-*.zip" --dir published-assets
+          for arch in x64 arm64; do
+            cmp "artifacts/wingetscout-$VERSION-win-$arch.zip" "published-assets/wingetscout-$VERSION-win-$arch.zip"
+          done
+
+      - name: Prepare WinGet manifests from the published ZIPs
+        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
+        run: ./packaging/new-winget-manifest.ps1 -Version $env:VERSION -AssetDirectory published-assets -OutputDirectory winget-manifests
+
+      - name: Save WinGet submission files
+        if: ${{ !contains(needs.validate-tag.outputs.version, '-') }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: winget-manifests-${{ needs.validate-tag.outputs.version }}
+          path: winget-manifests/
+          retention-days: 90

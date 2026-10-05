@@ -24,6 +24,18 @@ The repository selects Microsoft.Testing.Platform in `global.json`. Pass the pro
 `--project` as shown above; the older positional `dotnet test tests/...csproj` form is not
 accepted by this runner. IDE test discovery likewise requires Microsoft.Testing.Platform support.
 
+The same file pins the .NET SDK for reproducible locked restores. When updating that pin
+or the WinGet COM packages, install the new SDK and regenerate both application modes:
+
+```powershell
+dotnet restore tests/WinGetScout.Tests.csproj --use-lock-file
+dotnet restore WinGetScout.csproj -p:WingetComMode=Identity --use-lock-file
+```
+
+Commit `packages.lock.json`, `packages.identity.lock.json`, and
+`tests/packages.lock.json` if they changed. CI reads the SDK version from `global.json`
+and restores both portable and MSIX Identity graphs in locked mode.
+
 ## Filing issues
 
 - **Bugs**: include the failing scenario, OS + architecture (x64 vs arm64), and where possible a `--dump` trace (e.g. `wingetscout --dump search vscode > dump.txt`).
