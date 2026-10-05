@@ -3,6 +3,7 @@ bin/
 obj/
 publish/
 dist/
+/site/_build/
 /packaging/release-assets/
 /packaging/winget-manifests/
 *.nupkg

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://wingetscout.com/sitemap.xml
