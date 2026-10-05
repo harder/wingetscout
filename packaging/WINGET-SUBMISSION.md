@@ -8,7 +8,7 @@ The installer manifest has `InstallerType: zip`, `NestedInstallerType: portable`
 2. Download that artifact from the successful release workflow run. The files are under `manifests/h/Harder/WinGetScout/<version>/`. To regenerate directly from the published ZIPs and validate in one command on Windows, run:
 
    ```powershell
-   pwsh ./packaging/prepare-winget-submission.ps1 -Version 0.1.4
+   pwsh ./packaging/prepare-winget-submission.ps1 -Version 0.2.0
    ```
 
    The helper needs `gh`, `winget`, and a GitHub login with access to the public release. It downloads the exact published assets and uses [new-winget-manifest.ps1](new-winget-manifest.ps1) to check the archive layout and compute SHA-256 values. The release workflow also verifies its published ZIPs are byte-for-byte identical to its build artifacts. Before submitting, inspect the generated URLs and hashes against the GitHub Release.

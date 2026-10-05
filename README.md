@@ -6,6 +6,8 @@
 [![Windows](https://img.shields.io/badge/Windows-x64%20%7C%20arm64-0078D4?style=flat&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
 
+[Website](https://wingetscout.com/) · [Documentation](https://wingetscout.com/docs.html) · [Releases](https://github.com/harder/wingetscout/releases)
+
 ## Install
 
 **Recommended: download the portable ZIP** from [GitHub Releases](https://github.com/harder/wingetscout/releases). It includes `wingetscout.exe` and the companion files needed for the full WinGet COM experience. No .NET runtime or installer is required.
@@ -13,8 +15,6 @@
 A WinGet community package is being prepared as `Harder.WinGetScout`. Use the release ZIP until the [community submission](packaging/WINGET-SUBMISSION.md) is accepted.
 
 After that package is accepted, `winget install -e --id Harder.WinGetScout` will install the ZIP into WinGet's managed portable directory and add `wingetscout` to your user `PATH`. Open a **new terminal** to use the command from any folder. The WinGet manifest already requests this behavior; it does not require a separate installer or manual PATH editing. WinGet verifies the downloaded ZIP hash, but it does not sign the executable. See [signing and distribution](code-signing.md).
-
-> **Release availability:** The Scout filenames below will appear with the first Scout release. If they are not on the Releases page yet, Scout has not been published; see [Build from source](#build-from-source) to try the current code.
 
 1. Choose the ZIP for your Windows PC:
 
