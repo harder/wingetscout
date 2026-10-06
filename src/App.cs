@@ -1077,15 +1077,16 @@ public sealed partial class App : Window
         // Preferred widths, and how far each may shrink. Available/Source are not shrunk so they
         // survive; Source is the ExpandLastColumn target and fills whatever remains.
         int nameW = 24, idW = 28, verW = 14;
-        const int availW = 14, sourceW = 8, srcReserve = 6;
+        const int availW = 14, sourceW = 8, tableGutter = 8;
         const int nameMin = 14, idMin = 16, verMin = 9;
 
         bool hasAvailable = names.Any (name => name.StartsWith ("Available", StringComparison.Ordinal));
         int dataCols = Math.Max (0, names.Length - 1); // exclude the 1-wide marker column
 
-        // Reserve the marker, rough inter-column padding, and a minimum for the expanding Source
-        // column, then shrink Id → Name → Version (in that order) to fit Name+Id+Version+Available.
-        int budget = avail - 1 - (dataCols + 1) - srcReserve;
+        // Reserve the marker, column separators, the Source column, and TableView's rendering
+        // gutter. Otherwise the last column is clipped before the first selection redraw.
+        // Shrink Id → Name → Version (in that order) to fit Name+Id+Version+Available.
+        int budget = avail - 1 - (dataCols + 1) - sourceW - tableGutter;
         int deficit = nameW + idW + verW + (hasAvailable ? availW : 0) - budget;
 
         if (deficit > 0) { int c = Math.Min (deficit, idW - idMin); idW -= c; deficit -= c; }
@@ -1113,6 +1114,8 @@ public sealed partial class App : Window
             s.MaxWidth = w.Value;
         }
 
+        // Recompute the table's cached layout now that its fixed column widths changed.
+        _packageTable.RefreshContentSize ();
         _packageTable.SetNeedsDraw ();
     }
 

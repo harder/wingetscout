@@ -539,6 +539,31 @@ public class AppBehaviorTests
             + $"list viewport {listBefore}->{frame.Viewport.Width}");
     }
 
+    [Fact]
+    public void App_Upgrades_ContentWidthIsStableAfterFirstSelection ()
+    {
+        App app = new (new MockBackend ()) { Frame = new (0, 0, 150, 40) };
+        AppState state = GetPrivateField<AppState> (app, "_state");
+        TableView table = GetPrivateField<TableView> (app, "_packageTable");
+        FrameView frame = GetPrivateField<FrameView> (app, "_listFrame");
+        LayoutView (app, new (150, 40));
+        state.Mode = AppMode.Upgrades;
+        state.Packages =
+        [
+            new () { Id = "Git.Git", Name = "Git", Version = "2.46.0", AvailableVersion = "2.47.0", Source = "winget" },
+            new () { Id = "Microsoft.PowerShell", Name = "PowerShell", Version = "7.4.5", AvailableVersion = "7.5.0", Source = "winget" }
+        ];
+        state.ApplyFilter ();
+        InvokePrivate (app, "RefreshTable");
+        int before = table.GetContentSize ().Width;
+
+        table.Value = new (new (0, 1));
+
+        Assert.Equal (before, table.GetContentSize ().Width);
+        Assert.True (before <= frame.Viewport.Width,
+            $"Table content width {before} exceeds the {frame.Viewport.Width}-cell list pane.");
+    }
+
     [Theory]
     [InlineData (AppMode.Installed)]
     [InlineData (AppMode.Upgrades)]
