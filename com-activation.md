@@ -1,8 +1,7 @@
 # COM activation under Native AOT
 
-How `wingetscout` reaches the WinGet COM API, why it's harder than it looks, and the options
-for distributing it. This is the architectural companion to [code-signing.md](code-signing.md)
-(which covers the signing/packaging mechanics referenced below).
+How `wingetscout` reaches the WinGet COM API in its current portable ZIP, and how the optional
+MSIX identity build differs. For release and signing status, see [code-signing.md](code-signing.md).
 
 ## The problem in one paragraph
 
@@ -15,7 +14,7 @@ identity**. An unpackaged process has none, so activation throws `0x80073D54`
 manual-activation shim, or CsWinRT's runtime fallback); under **Native AOT** none of those bridges
 exist, so the shipped AOT build can't reach the out-of-process server at all.
 
-## What the spike measured
+## What the activation investigation measured
 
 All rows tested on a Windows 11 ARM64 host against the real installed winget server.
 
@@ -63,26 +62,25 @@ Two non-obvious conclusions:
 - Identity without the `.winmd` — `0x8000000F`.
 - `Microsoft.Windows.CsWinRT 3.x` AOT-first projection — breaks at its own codegen.
 
-## How this maps to distribution (the two-download model)
+## How this maps to distribution
 
-- **Download A — portable `.exe`, CLI backend.** AOT single file, no install, no signing, no COM.
-  Lowest friction; the obvious default.
-- **Download B — signed MSIX, COM backend.** One installed app. Two internal flavors:
-  - **B-identity** — AOT exe + 61 KB `.winmd`, package identity → out-of-process COM. Minimal payload;
-    needs the signing cert; leans on the machine's winget server. Built via
-    `WingetComMode=Identity` (see below).
-  - **B-inproc** — AOT exe + the 7 MB in-process engine inside the MSIX; identity not required for
-    activation, so the MSIX is purely for signing/clean-install/SmartScreen. Bigger but self-contained
-    and dodges the server-wedge bug. Built via the default `WingetComMode=InProc`.
+- **Portable ZIP (recommended):** the Native AOT executable and in-process COM companion files.
+  It uses COM where activation succeeds and falls back to the WinGet CLI. This is the initial WinGet
+  community-package format; keep the extracted folder together.
+- **Standalone `.exe`:** a smaller release download without the COM companion files. It uses the
+  WinGet CLI backend.
+- **MSIX (not yet released):** the identity build uses a `.winmd` file and package identity to reach
+  the out-of-process WinGet server. It still needs public-trust signing and installation tests before
+  it can be offered. The release workflow only publishes it when signing is fully configured.
 
 ### The `WingetComMode` build switch
 
 The project selects the activation strategy at build time (Windows TFM only):
 
-- `WingetComMode=InProc` (default) — references `InProcCom` + the in-proc `app.manifest`. Portable
-  build; what the zip/standalone exe ships.
+- `WingetComMode=InProc` (default) — references `InProcCom` + the in-proc `app.manifest`. This is the
+  full ZIP build. A single EXE download omits the companion files and uses CLI fallback.
 - `WingetComMode=Identity` — drops `InProcCom` and the in-proc manifest routing, copies the `.winmd`
-  next to the exe, and relies on package identity. What the MSIX (download B-identity) ships.
+  next to the exe, and relies on package identity. This is the unreleased MSIX build.
 
 ```powershell
 # portable / in-proc (default)
@@ -92,10 +90,5 @@ dotnet publish -c Release -f net10.0-windows10.0.26100.0 -r win-x64
 dotnet publish -c Release -f net10.0-windows10.0.26100.0 -r win-x64 -p:WingetComMode=Identity
 ```
 
-## Recommendation
-
-Ship **A (portable CLI exe)** as the default and **B-identity (signed MSIX, winmd-only, OOP COM)** as
-the full-COM experience — the cleanest realization of "signed installer → single app → COM," validated
-by the spike. Keep the in-proc zip as a no-install fallback if a third option is wanted. Packaging and
-signing mechanics, costs, and the release-workflow wiring live in [code-signing.md](code-signing.md);
-the MSIX manifest + build script live under [`packaging/`](packaging/).
+The public distribution steps are in [README.md](README.md#install). The future MSIX signing steps are
+in [code-signing.md](code-signing.md); the build script and manifest live under [`packaging/`](packaging/).

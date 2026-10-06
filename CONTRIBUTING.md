@@ -7,18 +7,18 @@ Scout for WinGet is a terminal app for managing Windows packages. Contributions 
 ```bash
 git clone https://github.com/harder/wingetscout
 cd wingetscout
-dotnet test --project tests/WinGetScout.Tests.csproj   # 245+ tests
-dotnet run -- --mock                       # UI iteration, any host
+dotnet test --project tests/WinGetScout.Tests.csproj
+dotnet run -f net10.0 -- --mock           # UI iteration, any host
 ```
 
-Building the actual AOT binary requires a **Windows host** with Visual Studio Build Tools (C++ workload). See [README § Building](README.md#building).
+Building the actual AOT binary requires a **Windows host** with Visual Studio Build Tools (C++ workload). See [Build from source](README.md#build-from-source).
 
 ## Working on a change
 
 1. **Add a test first** when the change touches parser behavior, model semantics, or anything covered by `tests/ParserTests.cs`. Every existing test is anchored to a real bug — please keep that pattern.
 2. **Check real WinGet output** when changing parsing logic. Add representative examples and document UI limitations in [feature-gaps.md](feature-gaps.md).
 3. **Run the suite** before opening a PR: `dotnet test --project tests/WinGetScout.Tests.csproj`.
-4. **Check in before large new-feature PRs.** Open an issue or discuss the approach first for anything sizable so the design lands before the code does. Packaging, distribution, and signing are being actively pursued (see [code-signing.md](code-signing.md)) — coordinate there rather than opening a competing effort.
+4. **Check in before large new-feature PRs.** Open an issue or discuss the approach first for anything sizable so the design lands before the code does. Coordinate packaging and signing changes against the [current distribution plan](code-signing.md).
 
 The repository selects Microsoft.Testing.Platform in `global.json`. Pass the project with
 `--project` as shown above; the older positional `dotnet test tests/...csproj` form is not

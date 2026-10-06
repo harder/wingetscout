@@ -1,8 +1,8 @@
-# Windows verification checklist — COM backend (merged to `main`)
+# Windows verification log and open checks — COM backend
 
-The COM backend work has landed on **`main`** (PR #10, merge `c7f3593`) — there's no longer a
-separate `feat/com-backend` branch to check out. Pull `main` into a native-Windows folder and
-verify there.
+This file records dated Windows test results and remaining checks. Earlier passes are evidence for
+the build and WinGet version shown, not a claim that every operation has been revalidated on the
+latest release. Use a current build on Windows for the open items below.
 
 Everything below can only be confirmed on a real Windows host (Native AOT codegen
 can't cross-compile from Linux, and the WinGet COM server + installs need Windows).
