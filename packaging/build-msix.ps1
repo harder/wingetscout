@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Build (and optionally sign / test) the download-B MSIX: a Native-AOT, package-identity build of
+  Build (and optionally sign / test) the MSIX: a Native-AOT, package-identity build of
   wingetscout that reaches the in-box out-of-process WinGet COM server. See ../com-activation.md.
 
 .DESCRIPTION
@@ -16,12 +16,12 @@
 
 .EXAMPLE
   # CI: pack only (sign separately with Azure Artifact Signing, see code-signing.md):
-  pwsh ./packaging/build-msix.ps1 -Arch x64 -Version 0.2.1.0
+  pwsh ./packaging/build-msix.ps1 -Arch x64
 #>
 [CmdletBinding()]
 param(
   [ValidateSet('x64', 'arm64')] [string]$Arch = 'arm64',
-  [string]$Version = '0.2.1.0',
+  [string]$Version,
   [string]$Publisher = 'CN=wingetscout (Dev)',
   [string]$CertPath,
   [string]$CertPassword = 'spike',
@@ -33,7 +33,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Version must be 4-part (e.g. 0.2.0.0); got '$Version'." }
+if (-not $Version) {
+  $project = Get-Content -LiteralPath (Join-Path $repo 'WinGetScout.csproj') -Raw
+  $projectVersion = [regex]::Match($project, '<Version>([^<]+)</Version>').Groups[1].Value
+  if ($projectVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Could not read a 3-part project version from WinGetScout.csproj' }
+  $Version = "$projectVersion.0"
+}
+if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Version must be 4-part (e.g. 1.2.3.0); got '$Version'." }
 if (-not $OutDir) { $OutDir = Join-Path $repo 'dist' }
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
