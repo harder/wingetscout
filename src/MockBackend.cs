@@ -91,8 +91,8 @@ public sealed class MockBackend : IBackend
             Source = p.Source,
             PinState = p.PinState,
             Publisher = $"{p.Name.Split (' ') [0]} Team",
-            Description = $"{p.Name} is a placeholder description for the mock backend. "
-                          + "When running on Windows with winget installed, real manifest data is fetched here. ",
+            Description = $"Sample details for {p.Name}. In a live WinGet session, Scout shows "
+                          + "package metadata from the active source and available actions here.",
             Homepage = $"https://example.invalid/{p.Id}",
             License = "MIT",
             ReleaseNotesUrl = $"https://example.invalid/{p.Id}/releases",

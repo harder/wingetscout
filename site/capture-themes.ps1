@@ -1,4 +1,4 @@
-<# Capture the four site screenshots from a Scout build without changing packages. #>
+<# Capture site screenshots and short demos from a Scout build without changing packages. #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)] [string]$AppPath,
@@ -8,9 +8,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $app = (Resolve-Path -LiteralPath $AppPath).Path.Replace('\', '/')
 $recorder = (Get-Command $TuirecPath -ErrorAction Stop).Source
-$castDirectory = Join-Path $env:TEMP 'wingetscout-theme-casts'
-New-Item -ItemType Directory -Path $castDirectory -Force | Out-Null
-
 $captures = @(
   @{ Name = 'scout-sage-search'; Theme = 'sage'; Keys = 'wait:500,CursorLeft,`git`,Enter,wait:1200'; Contains = 'Git.Git' },
   @{ Name = 'scout-amber-installed'; Theme = 'amber'; Keys = 'wait:1200'; Contains = 'Installed (10)' },
@@ -30,12 +27,24 @@ try {
 
   foreach ($capture in $captures) {
     $output = Join-Path $PSScriptRoot "media/$($capture.Name).png"
-    $cast = Join-Path $castDirectory "$($capture.Name).cast"
     & $recorder snapshot --binary $app --args=--mock "--args=--theme=$($capture.Theme)" `
       --keystrokes $capture.Keys --startup-delay 1600 --drain 200 `
-      --cols 100 --rows 30 --font-size 17 --output $output `
-      --cast-output $cast --assert-contains $capture.Contains --verbosity quiet
+      --cols 140 --rows 34 --font-size 16 --output $output `
+      --assert-contains $capture.Contains --verbosity quiet
     if ($LASTEXITCODE -ne 0) { throw "Failed to capture $($capture.Name)" }
+    Write-Host "Captured $output"
+  }
+
+  $demos = @(
+    @{ Name = 'scout-search-demo'; Theme = 'sage'; Keys = 'wait:500,CursorLeft,wait:300,`git`,Enter,wait:900,CursorDown,wait:650,CursorUp,wait:800' },
+    @{ Name = 'scout-upgrades-demo'; Theme = 'moss'; Keys = 'wait:500,CursorRight,wait:900,CursorDown,wait:650,CursorUp,wait:800' }
+  )
+  foreach ($demo in $demos) {
+    $output = Join-Path $PSScriptRoot "media/$($demo.Name).gif"
+    & $recorder record --binary $app --args=--mock "--args=--theme=$($demo.Theme)" `
+      --keystrokes $demo.Keys --startup-delay 1600 --drain 300 `
+      --cols 140 --rows 34 --font-size 16 --output $output --verbosity quiet
+    if ($LASTEXITCODE -ne 0) { throw "Failed to capture $($demo.Name)" }
     Write-Host "Captured $output"
   }
 }

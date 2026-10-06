@@ -1,54 +1,19 @@
 # Scout for WinGet website
 
-The website lives in `site/` and is deployed by [Pages](../.github/workflows/pages.yml)
-when site files reach `main`. It uses plain HTML, CSS, JavaScript, and Python's standard
-library. [SkillView](https://github.com/harder/gh-skillview) uses the same build/deploy
-shape, but this site has its own warm, window-inspired design and original dog mascot.
+The public site at [wingetscout.com](https://wingetscout.com/) is built from this folder with plain HTML, CSS, and JavaScript. [GitHub Pages](../.github/workflows/pages.yml) validates site changes in pull requests and deploys them when they reach `main`.
 
-Run `python site/build.py` from the repository root to copy published files to
-`site/_build/` and check local links. The Pages workflow runs the same check on PRs.
-The four theme screenshots in `site/media/` were recorded from the v0.2.0
-application with [tuirec](https://github.com/tui-cs/tuirec) in `--mock` mode.
-They show demo data and do not change installed packages. To refresh them, run
-`site/capture-themes.ps1 -AppPath <path-to-wingetscout.exe> -TuirecPath <path-to-tuirec.exe>`
-on Windows. The script removes `NO_COLOR` for its child processes and requests
-true color, so the built-in Sage, Amber, Moss & Olive, and Dusty Rose palettes
-remain distinguishable in captures.
+Run `python site/build.py` from the repository root to build `site/_build/` and check local files and anchors. The Pages workflow uses the same command.
 
-## Set up wingetscout.com
+## Refresh the product captures
 
-The workflow can deploy after the site is merged. GitHub Pages needs **GitHub Actions**
-as its publishing source and `wingetscout.com` saved as its custom domain in
-**harder/wingetscout → Settings → Pages**. The included `CNAME` is a copy of the intended
-domain for the built output; GitHub ignores that file for custom-workflow publishing,
-so the Pages setting is required.
-
-At the domain's DNS provider, create these records (or an equivalent apex ALIAS/ANAME):
-
-| Type | Name | Value |
-| --- | --- | --- |
-| A | `@` | `185.199.108.153` |
-| A | `@` | `185.199.109.153` |
-| A | `@` | `185.199.110.153` |
-| A | `@` | `185.199.111.153` |
-| CNAME | `www` | `harder.github.io` |
-
-Remove conflicting apex A/AAAA/ALIAS/ANAME records and conflicting `www` records.
-An optional IPv6 setup uses GitHub's published AAAA addresses; see the
-[GitHub DNS guidance](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
-The `www` record lets GitHub redirect `www.wingetscout.com` to the apex domain.
-Avoid wildcard DNS records for this domain.
-
-Verify the domain under the GitHub account's **Settings → Pages → Verified domains**;
-GitHub supplies a unique TXT record for this step. After DNS and the certificate are
-ready, enable **Enforce HTTPS** in the repository's Pages settings. DNS propagation
-and certificate issuance can take time. Confirm with:
+The four theme PNGs and two short GIFs in `site/media/` come from the real app in safe `--mock` mode. They show sample packages; they are not captures of a published release. Build the current branch, install [tuirec](https://github.com/tui-cs/tuirec), then run on Windows:
 
 ```powershell
-Resolve-DnsName wingetscout.com -Type A
-Resolve-DnsName www.wingetscout.com -Type CNAME
-Invoke-WebRequest https://wingetscout.com/ -UseBasicParsing
+dotnet build WinGetScout.csproj -c Release -f net10.0
+./site/capture-themes.ps1 -AppPath ./bin/Release/net10.0/wingetscout.exe
+python site/build.py
 ```
 
-See [GitHub's custom-domain instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
-for current DNS records and setup details.
+Pass `-TuirecPath <path-to-tuirec.exe>` when it is not on `PATH`. The script records at 140 × 34 terminal cells so the Upgrades Source column is visible. It temporarily enables true color for the child process. Inspect every capture before committing it, especially the text, selection state, and column widths. If a layout change ships in a new release, regenerate the media from that source and update any version-specific description at the same time.
+
+The repository's Pages settings hold the custom domain and HTTPS configuration; `site/CNAME` and `site/sitemap.xml` record the public URL used by the build.

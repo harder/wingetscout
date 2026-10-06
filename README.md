@@ -3,10 +3,14 @@
 **WinGet Scout** brings Windows package management into your terminal. Search for software, inspect package details, install and upgrade packages, manage pins, and review what happened after each run. It uses the WinGet COM API when available and falls back to the `winget` command-line tool.
 
 [![CI](https://github.com/harder/wingetscout/actions/workflows/ci.yml/badge.svg)](https://github.com/harder/wingetscout/actions/workflows/ci.yml)
-[![Windows](https://img.shields.io/badge/Windows-x64%20%7C%20arm64-0078D4?style=flat&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![Windows](https://img.shields.io/badge/Windows-x64%20%7C%20arm64-65546A?style=flat)](https://www.microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
 
 [Website](https://wingetscout.com/) · [Documentation](https://wingetscout.com/docs.html) · [Releases](https://github.com/harder/wingetscout/releases)
+
+![Scout search results and package details in the Sage theme, using sample data](site/media/scout-sage-search.png)
+
+[Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). These captures use Scout's safe `--mock` mode and show sample packages from the current development build.
 
 ## Install
 
@@ -35,7 +39,7 @@ Scout requires Windows 10 or 11 and [WinGet](https://learn.microsoft.com/windows
 ### Other downloads
 
 - **Single executable:** `wingetscout-x64.exe` or `wingetscout-arm64.exe` is the smallest portable option. It runs through the `winget` CLI because the COM companion files are not included. Run the downloaded filename directly, for example `.\wingetscout-x64.exe`.
-- **MSIX later:** A signed `wingetscout-<version>-<architecture>.msix` may be offered after public-trust signing is configured and tested. It is a separate package-identity installation option; the first WinGet submission uses ZIP.
+- **MSIX:** This is not a release download yet. See the [signing plan](code-signing.md) for the work needed before a signed package can be offered.
 
 Portable downloads are currently unsigned. If Windows shows a SmartScreen warning, verify that the file came from this repository's release page and compare its SHA-256 hash with the release's `SHA256SUMS` file before choosing **More info → Run anyway**. You can also right-click the downloaded file, open **Properties**, and select **Unblock** when Windows offers it. See [code signing](code-signing.md) for the current signing status.
 
