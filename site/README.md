@@ -6,7 +6,7 @@ Run `python site/build.py` from the repository root to build `site/_build/` and 
 
 ## Refresh the product captures
 
-The four theme PNGs and two short GIFs in `site/media/` come from the real app in safe `--mock` mode. They show sample packages; they are not captures of a published release. Build the current branch, install [tuirec](https://github.com/tui-cs/tuirec), then run on Windows:
+The four theme PNGs and two short GIFs in `site/media/` come from the real app in safe `--mock` mode. They show sample packages rather than someone's installed apps. Build the current branch, install [tuirec](https://github.com/tui-cs/tuirec), then run on Windows:
 
 ```powershell
 dotnet build WinGetScout.csproj -c Release -f net10.0

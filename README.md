@@ -10,7 +10,7 @@
 
 ![Scout search results and package details in the Sage theme, using sample data](site/media/scout-sage-search.png)
 
-[Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). These captures use Scout's safe `--mock` mode and show sample packages from the current development build.
+[Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). These captures use Scout's safe `--mock` mode and show sample packages.
 
 ## Install
 
