@@ -74,14 +74,14 @@ async function checkTerminalGui(github, core, owner, repo, project) {
     return;
   }
   const { data: releases } = await github.rest.repos.listReleases({
-    owner: 'gui-cs', repo: 'Terminal.Gui', per_page: 30,
+    owner: 'tui-cs', repo: 'Terminal.Gui', per_page: 30,
   });
   const upstream = releases.find(release => release.tag_name.toLowerCase().includes(latest.version.toLowerCase()));
   await createOnce(github, core, owner, repo, `Terminal.Gui develop update: ${latest.version}`, `
 Scout currently references **${match[1]}**; NuGet has **${latest.version}** on the develop channel.
 
 - [NuGet package and version history](https://www.nuget.org/packages/Terminal.Gui/${latest.version})
-- [Upstream changes](${upstream ? upstream.html_url : 'https://github.com/gui-cs/Terminal.Gui/releases'})
+- [Upstream changes](${upstream ? upstream.html_url : 'https://github.com/tui-cs/Terminal.Gui/releases'})
 - Check whether Dependabot opened an update PR. Its version PR may target a stable release instead of the develop channel.
 - Compare APIs used by Scout, especially UI thread dispatch, shutdown, layout, input, and progress callbacks.
 - Run unit tests, Windows x64 and ARM64 AOT publish, and mock smoke; record any live COM/TUI checks that require a Windows host.

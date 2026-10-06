@@ -8,7 +8,7 @@ The installer manifest has `InstallerType: zip`, `NestedInstallerType: portable`
 2. Download that artifact from the successful release workflow run. The files are under `manifests/h/Harder/WinGetScout/<version>/`. To regenerate directly from the published ZIPs and validate in one command on Windows, run:
 
    ```powershell
-   $version = '0.2.2' # replace with the published release version
+   $version = '1.0.0' # replace with the published release version
    pwsh ./packaging/prepare-winget-submission.ps1 -Version $version
    ```
 

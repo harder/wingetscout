@@ -84,9 +84,9 @@ COM enables richer package details, installer previews and version lists, live p
 
 ## Inspiration and credits
 
-[Scott Hanselman's **winget-tui**](https://github.com/shanselman/winget-tui), built with Rust and Ratatui, inspired this project and deserves credit for showing how approachable WinGet can be in a terminal. Scout began as a C# exploration of what [Terminal.Gui](https://github.com/gui-cs/Terminal.Gui) could do with that kind of experience. It has since developed into an independent package manager with its own workflows, design, and release builds. No source code was copied from the inspiration project.
+[Scott Hanselman's **winget-tui**](https://github.com/shanselman/winget-tui), built with Rust and Ratatui, inspired this project and deserves credit for showing how approachable WinGet can be in a terminal. Scout began as a C# exploration of what [Terminal.Gui](https://github.com/tui-cs/Terminal.Gui) could do with that kind of experience. It has since developed into an independent package manager with its own workflows, design, and release builds. No source code was copied from the inspiration project.
 
-Scout for WinGet is [MIT licensed](LICENSE). WinGet is maintained by [Microsoft](https://github.com/microsoft/winget-cli); Terminal.Gui is maintained by its [contributors](https://github.com/gui-cs/Terminal.Gui).
+Scout for WinGet is [MIT licensed](LICENSE). WinGet is maintained by [Microsoft](https://github.com/microsoft/winget-cli); Terminal.Gui is maintained by its [contributors](https://github.com/tui-cs/Terminal.Gui).
 
 ## Development
 
