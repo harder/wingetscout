@@ -11,6 +11,8 @@ public sealed partial class App : Window
 {
     /// <summary>One navigation row and one contextual row before the main content.</summary>
     private const int HeaderHeight = 2;
+    private const int ScoutWidth = 17;
+    private const int ScoutHeight = 4;
 
     // Debounce before an uncached detail fetch fires. Scrolling the list changes the selection
     // rapidly; without this, every row the cursor passes over issues a full backend detail
@@ -28,6 +30,7 @@ public sealed partial class App : Window
     private readonly FrameView _listFrame;
     private readonly SortableTableView _packageTable;
     private readonly Label _mainLoadingLabel;
+    private readonly Label _scoutMascot;
     private readonly DetailPanel _detailPanel;
     private readonly StatusBar _statusBar;
     private readonly TerminalSizeGuardView _sizeGuard;
@@ -148,11 +151,27 @@ public sealed partial class App : Window
             Visible = false
         };
 
+        _scoutMascot = new ()
+        {
+            X = Pos.AnchorEnd (ScoutWidth + 1),
+            Y = Pos.AnchorEnd (ScoutHeight + 1),
+            Width = ScoutWidth,
+            Height = ScoutHeight,
+            Text = "  / \\__\n (    @\\___\n  /         O[ ]\n /   (_____/",
+            SchemeName = Theme.SurfaceSchemeName,
+            CanFocus = false,
+            Visible = false
+        };
+
         // The list frame stays visible while the table is replaced or hidden for loading. Its
         // interior width is the stable column budget; the table's own viewport can change when
         // selection or scrolling updates its content.
-        _listFrame.ViewportChanged += (_, _) => ApplyColumnWidths ();
-        _listFrame.Add (_packageTable, _mainLoadingLabel);
+        _listFrame.ViewportChanged += (_, _) =>
+                                      {
+                                          ApplyColumnWidths ();
+                                          UpdateScoutVisibility ();
+                                      };
+        _listFrame.Add (_packageTable, _mainLoadingLabel, _scoutMascot);
 
         _detailPanel = new ()
         {
@@ -839,6 +858,7 @@ public sealed partial class App : Window
         _mainLoadingMode = mode;
         _mainLoadingLabel.Text = MainLoadingText (mode, _statusBar.Tick);
         _mainLoadingLabel.Visible = true;
+        UpdateScoutVisibility ();
         _listFrame.Title = $" {mode} (loading…) ";
         _detailPanel.SetDetail (null, true);
     }
@@ -848,6 +868,7 @@ public sealed partial class App : Window
         _mainLoadingMode = null;
         _mainLoadingLabel.Visible = false;
         _packageTable.Visible = true;
+        UpdateScoutVisibility ();
     }
 
     private void ShowMainLoadError (AppMode mode)
@@ -856,6 +877,7 @@ public sealed partial class App : Window
         _mainLoadingLabel.Text = $"\nCould not load {MainLoadingName (mode)}. See status bar.";
         _mainLoadingLabel.Visible = true;
         _packageTable.Visible = false;
+        UpdateScoutVisibility ();
         _detailPanel.SetDetail (null, false);
         _listFrame.Title = $" {mode} (error) ";
     }
@@ -879,6 +901,7 @@ public sealed partial class App : Window
             });
 
             RefreshStatusBar ();
+            UpdateScoutVisibility ();
 
             return;
         }
@@ -934,7 +957,20 @@ public sealed partial class App : Window
         _packageTable.Table = marked;
 
         ApplyColumnStyles (marked);
+        UpdateScoutVisibility ();
         OnSelectedRowChanged ();
+    }
+
+    private void UpdateScoutVisibility ()
+    {
+        // The table uses two rows for its header and underline. Keep two more blank rows
+        // between the last package and the drawing, including when the pane is resized.
+        int scoutTop = _listFrame.Viewport.Height - ScoutHeight - 1;
+        _scoutMascot.Visible = _packageTable.Visible
+                               && !_mainLoadingLabel.Visible
+                               && string.IsNullOrEmpty (_state.ViewError)
+                               && _listFrame.Viewport.Width >= ScoutWidth + 2
+                               && scoutTop >= _state.Filtered.Count + 4;
     }
 
     private void UpdateListTitle ()

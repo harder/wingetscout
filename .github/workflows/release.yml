@@ -2,8 +2,8 @@ name: Release
 
 # Tag-driven release. To cut a release:
 #
-#   git tag v0.2.0
-#   git push origin v0.2.0
+#   git tag v0.2.1
+#   git push origin v0.2.1
 #
 # Builds win-x64 and win-arm64 AOT executables, packages them with the README and
 # LICENSE into zips, computes SHA-256 checksums, and publishes a GitHub Release with

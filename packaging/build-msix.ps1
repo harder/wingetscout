@@ -16,12 +16,12 @@
 
 .EXAMPLE
   # CI: pack only (sign separately with Azure Artifact Signing, see code-signing.md):
-  pwsh ./packaging/build-msix.ps1 -Arch x64 -Version 0.2.0.0
+  pwsh ./packaging/build-msix.ps1 -Arch x64 -Version 0.2.1.0
 #>
 [CmdletBinding()]
 param(
   [ValidateSet('x64', 'arm64')] [string]$Arch = 'arm64',
-  [string]$Version = '0.2.0.0',
+  [string]$Version = '0.2.1.0',
   [string]$Publisher = 'CN=wingetscout (Dev)',
   [string]$CertPath,
   [string]$CertPassword = 'spike',

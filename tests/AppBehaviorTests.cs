@@ -122,6 +122,55 @@ public class AppBehaviorTests
         Assert.Equal (2, listFrame.Frame.Y);
     }
 
+    [Theory]
+    [InlineData (AppMode.Installed)]
+    [InlineData (AppMode.Upgrades)]
+    [InlineData (AppMode.Search)]
+    public void App_ScoutAppearsBelowShortListsOnEveryTab (AppMode mode)
+    {
+        App app = new (new MockBackend ()) { Frame = new (0, 0, 100, 30) };
+        AppState state = GetPrivateField<AppState> (app, "_state");
+        FrameView list = GetPrivateField<FrameView> (app, "_listFrame");
+        Label scout = GetPrivateField<Label> (app, "_scoutMascot");
+        LayoutView (app, new (100, 30));
+        state.Mode = mode;
+        state.Packages = [new () { Id = "Example.App", Name = "Example", Version = "1", Source = "winget" }];
+        state.ApplyFilter ();
+        InvokePrivate (app, "RefreshTable");
+        LayoutView (app, new (100, 30));
+
+        Assert.True (scout.Visible);
+        Assert.True (scout.Frame.Y >= state.Filtered.Count + 4);
+        Assert.True (scout.Frame.Right < list.Viewport.Width);
+    }
+
+    [Fact]
+    public void App_ScoutHidesWhenRowsFillPaneOrListIsLoadingOrFailed ()
+    {
+        App app = new (new MockBackend ()) { Frame = new (0, 0, 100, 30) };
+        AppState state = GetPrivateField<AppState> (app, "_state");
+        Label scout = GetPrivateField<Label> (app, "_scoutMascot");
+        LayoutView (app, new (100, 30));
+        state.Packages = Enumerable.Range (0, 30)
+            .Select (i => new Package { Id = $"Example.{i}", Name = $"Example {i}", Version = "1" }).ToList ();
+        state.ApplyFilter ();
+        InvokePrivate (app, "RefreshTable");
+        Assert.False (scout.Visible);
+
+        state.Packages = [new () { Id = "Example.App", Name = "Example", Version = "1" }];
+        state.ApplyFilter ();
+        InvokePrivate (app, "RefreshTable");
+        Assert.True (scout.Visible);
+
+        InvokePrivate (app, "ShowMainLoading", AppMode.Installed);
+        Assert.False (scout.Visible);
+
+        state.ViewError = "Could not load Installed. Press r to retry.";
+        InvokePrivate (app, "HideMainLoading");
+        InvokePrivate (app, "RefreshTable");
+        Assert.False (scout.Visible);
+    }
+
     [Fact]
     public void App_OpeningSearch_ShowsTheSearchFieldImmediately ()
     {

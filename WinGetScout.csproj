@@ -20,7 +20,7 @@
     <AssemblyName>wingetscout</AssemblyName>
     <Product>Scout for WinGet</Product>
     <Title>Scout for WinGet</Title>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Description>Scout for WinGet is a terminal app for finding, installing, and updating Windows packages.</Description>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
