@@ -44,7 +44,7 @@ and restores both portable and MSIX Identity graphs in locked mode.
 
 ## Code style
 
-Mostly follow standard C# / .NET conventions. The project loosely mirrors [Terminal.Gui's style](https://github.com/gui-cs/Terminal.Gui/blob/develop/.claude/rules/formatting.md) — notable points:
+Mostly follow standard C# / .NET conventions. The project loosely mirrors [Terminal.Gui's style](https://github.com/tui-cs/Terminal.Gui/blob/develop/.claude/rules/formatting.md) — notable points:
 
 - Space before parens: `Method ()`, `array [i]`, `if (...)`.
 - Braces on next line (Allman style).
