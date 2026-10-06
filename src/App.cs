@@ -968,6 +968,7 @@ public sealed partial class App : Window
         int scoutTop = _listFrame.Viewport.Height - ScoutHeight - 1;
         _scoutMascot.Visible = _packageTable.Visible
                                && !_mainLoadingLabel.Visible
+                               && string.IsNullOrEmpty (_state.ViewError)
                                && _listFrame.Viewport.Width >= ScoutWidth + 2
                                && scoutTop >= _state.Filtered.Count + 4;
     }

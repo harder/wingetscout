@@ -145,7 +145,7 @@ public class AppBehaviorTests
     }
 
     [Fact]
-    public void App_ScoutHidesWhenRowsFillPaneOrListIsLoading ()
+    public void App_ScoutHidesWhenRowsFillPaneOrListIsLoadingOrFailed ()
     {
         App app = new (new MockBackend ()) { Frame = new (0, 0, 100, 30) };
         AppState state = GetPrivateField<AppState> (app, "_state");
@@ -163,6 +163,11 @@ public class AppBehaviorTests
         Assert.True (scout.Visible);
 
         InvokePrivate (app, "ShowMainLoading", AppMode.Installed);
+        Assert.False (scout.Visible);
+
+        state.ViewError = "Could not load Installed. Press r to retry.";
+        InvokePrivate (app, "HideMainLoading");
+        InvokePrivate (app, "RefreshTable");
         Assert.False (scout.Visible);
     }
 
