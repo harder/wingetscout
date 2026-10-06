@@ -140,7 +140,7 @@ img{display:block;max-width:100%}
 .maker-project h3{margin:10px 0 8px;font-size:23px;letter-spacing:-.035em}
 .maker-project p{margin:0 0 16px;max-width:510px;font-size:13px;line-height:1.65}
 .maker-project a{font-size:12px;font-weight:800;border-bottom:1px solid currentColor;padding-bottom:3px}
-.maker-project a:hover{opacity:.76}
+.maker-project a:hover{border-bottom-width:2px}
 .maker-project-links{display:flex;gap:21px;flex-wrap:wrap}
 .maker-skillview{background:#443a4d;color:#fff8ef;border-color:#443a4d}
 .maker-skillview .maker-label{color:#eab69d}
