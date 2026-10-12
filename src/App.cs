@@ -1114,9 +1114,11 @@ public sealed partial class App : Window
             s.MaxWidth = w.Value;
         }
 
-        // Recompute the table's cached layout now that its fixed column widths changed.
+        // Table assignment may already have cached render columns using the old styles.
+        // RefreshContentSize updates the content bounds, while Update invalidates those
+        // rendered column positions before the first draw (as selection changes do).
         _packageTable.RefreshContentSize ();
-        _packageTable.SetNeedsDraw ();
+        _packageTable.Update ();
     }
 
     private string HeaderWithSort (string label, SortField field)
