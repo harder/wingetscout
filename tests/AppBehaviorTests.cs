@@ -539,6 +539,27 @@ public class AppBehaviorTests
             + $"list viewport {listBefore}->{frame.Viewport.Width}");
     }
 
+    [Theory]
+    [InlineData (AppMode.Installed)]
+    [InlineData (AppMode.Upgrades)]
+    public void App_ColumnWidths_InvalidateRenderCacheWhenStylesChange (AppMode mode)
+    {
+        App app = new (new MockBackend ()) { Frame = new (0, 0, 124, 40) };
+        AppState state = GetPrivateField<AppState> (app, "_state");
+        TableView table = GetPrivateField<TableView> (app, "_packageTable");
+        state.Mode = mode;
+        InvokePrivate (app, "ShowMainLoading", mode);
+        LayoutView (app, new (124, 40));
+        state.Packages = [new () { Id = "7zip.7zip", Name = "7-Zip", Version = "26.03", AvailableVersion = "26.04", Source = "winget" }];
+        state.ApplyFilter ();
+        InvokePrivate (app, "HideMainLoading");
+        InvokePrivate (app, "RefreshTable");
+        System.Reflection.FieldInfo cache = typeof (TableView).GetField (
+            "_columnsToRenderCache", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Assert.NotNull (cache);
+        Assert.Null (cache.GetValue (table));
+    }
+
     [Fact]
     public void App_Upgrades_ContentWidthIsStableAfterFirstSelection ()
     {
