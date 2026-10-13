@@ -191,7 +191,7 @@ public sealed class BackgroundTaskTracker : IDisposable
         }
     }
 
-    private void RecordFailure (Exception exception)
+    internal void RecordFailure (Exception exception)
     {
         int count = Interlocked.Increment (ref _failureCount);
 

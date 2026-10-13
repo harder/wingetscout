@@ -356,6 +356,25 @@ public sealed partial class App : Window
     public IReadOnlyList<Exception> BackgroundFailures => _background.Failures;
     public int DroppedBackgroundFailureCount => _background.DroppedFailureCount;
 
+    /// <inheritdoc />
+    protected override void Dispose (bool disposing)
+    {
+        if (disposing)
+        {
+            // Direct disposal can precede the end-of-session notification. Reject queued UI
+            // callbacks before any child view is disposed, even if a child disposal throws.
+            BeginShutdown ();
+            StopSpinner ();
+            if (_globalKeysAttached && App is { } app)
+            {
+                app.Keyboard.KeyDown -= OnGlobalKeyDown;
+                _globalKeysAttached = false;
+            }
+        }
+
+        base.Dispose (disposing);
+    }
+
     private void BeginShutdown ()
     {
         if (Interlocked.Exchange (ref _shutdownStarted, 1) != 0)
@@ -409,7 +428,7 @@ public sealed partial class App : Window
         return replacement;
     }
 
-    private static void CancelSource (CancellationTokenSource? source)
+    private void CancelSource (CancellationTokenSource? source)
     {
         if (source is null)
         {
@@ -424,9 +443,10 @@ public sealed partial class App : Window
         {
             // A worker may have completed and disposed its request source concurrently.
         }
-        catch
+        catch (Exception ex)
         {
             // A third-party cancellation callback must not prevent the remaining shutdown work.
+            _background.RecordFailure (ex);
         }
     }
 
@@ -1260,7 +1280,7 @@ public sealed partial class App : Window
             }
         }
 
-        _packageTable.Value = new (new (0, row));
+        SetListCursor (row);
     }
 
     private void RefreshStatusBar ()
@@ -1425,8 +1445,16 @@ public sealed partial class App : Window
 
         if (next != current)
         {
-            _packageTable.Value = new (new (0, next));
+            SetListCursor (next);
         }
+    }
+
+    private void SetListCursor (int row)
+    {
+        _packageTable.Value = new (new (0, row));
+        // Value synchronizes the cursor and raises ValueChanged, but does not scroll it into
+        // view. Update validates the selection and applies Terminal.Gui's viewport rules.
+        _packageTable.Update ();
     }
 
     /// <summary>
@@ -1555,7 +1583,7 @@ public sealed partial class App : Window
             case KeyCode.Home:
                 if (_state.Filtered.Count > 0)
                 {
-                    _packageTable.Value = new (new (0, 0));
+                    SetListCursor (0);
                 }
 
                 key.Handled = true;
@@ -1564,7 +1592,7 @@ public sealed partial class App : Window
             case KeyCode.End:
                 if (_state.Filtered.Count > 0)
                 {
-                    _packageTable.Value = new (new (0, _state.Filtered.Count - 1));
+                    SetListCursor (_state.Filtered.Count - 1);
                 }
 
                 key.Handled = true;
@@ -1665,15 +1693,6 @@ public sealed partial class App : Window
 
             key.Handled = true;
 
-            return;
-        }
-
-        // Explicit Home/End/PgUp/PgDn for parity (TableView handles them by default but
-        // we want to forward them through our handler so generation-counter cancellation
-        // wraps any incidental detail loads triggered by selection changes).
-        if (key.KeyCode is KeyCode.Home or KeyCode.End or KeyCode.PageUp or KeyCode.PageDown && _packageTable.HasFocus)
-        {
-            // Let TableView's default command bindings handle the move; do not mark handled.
             return;
         }
 
@@ -3189,8 +3208,32 @@ public sealed partial class App : Window
     /// </summary>
     private sealed class SortableTableView : TableView
     {
+        public SortableTableView ()
+        {
+            // This is a row list: Home/End should match the filter input and in-app help,
+            // rather than TableView's defaults that move to the first/last column.
+            KeyBindings.ReplaceCommands (Key.Home, Command.Start);
+            KeyBindings.ReplaceCommands (Key.End, Command.End);
+        }
+
         /// <summary>Raised with the clicked header's column index (the marker column is 0).</summary>
         public event Action<int>? HeaderClicked;
+
+        /// <inheritdoc />
+        protected override bool OnKeyDownNotHandled (Key key)
+        {
+            // Let TableView execute its normal navigation commands first. At an endpoint
+            // they can return false, which would send the arrow to parent focus navigation.
+            // Keep list-navigation keys in this pane; Tab still reaches App's focus handler.
+            if (key.KeyCode is KeyCode.CursorUp or KeyCode.CursorDown
+                or KeyCode.PageUp or KeyCode.PageDown or KeyCode.Home or KeyCode.End)
+            {
+                key.Handled = true;
+                return true;
+            }
+
+            return base.OnKeyDownNotHandled (key);
+        }
 
         /// <inheritdoc />
         protected override bool OnMouseEvent (Mouse mouse)

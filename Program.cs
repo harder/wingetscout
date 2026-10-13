@@ -205,92 +205,10 @@ if (themeArg is null || !Theme.TryApply (themeArg))
     Theme.Register ();
 }
 
-IApplication? app = null;
-App? window = null;
-int exitCode = 0;
-
-try
-{
-    // Assign before Init so a partially-initialized terminal still reaches the finally below.
-    // Init is what puts the terminal into raw mode and the alternate screen; if it throws
-    // midway, only Dispose can put it back.
-    app = Application.Create ();
-    app.Init ();
-    window = new (backend, smokeMode ? TimeSpan.FromSeconds (1) : null);
-    app.Run (window);
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine ($"Application failed: {ex.Message}");
-    exitCode = 1;
-}
-finally
-{
-    if (window is not null)
-    {
-        try
-        {
-            // Application.Run installs a UI synchronization context that is no longer pumped once
-            // Run returns. Block on the context-free shutdown task on this original thread instead
-            // of awaiting a continuation that could be posted to that stopped context.
-            bool drained = window.ShutdownAsync (TimeSpan.FromSeconds (5))
-                                 .ConfigureAwait (false)
-                                 .GetAwaiter ()
-                                 .GetResult ();
-
-            if (!drained)
-            {
-                Console.Error.WriteLine ("Shutdown timed out while waiting for background work.");
-                exitCode = 1;
-            }
-
-            if (window.BackgroundFailures.Count > 0 || window.DroppedBackgroundFailureCount > 0)
-            {
-                Console.Error.WriteLine (
-                    $"Background work failed {window.BackgroundFailures.Count + window.DroppedBackgroundFailureCount} time(s)." +
-                    (window.DroppedBackgroundFailureCount > 0
-                         ? $" {window.DroppedBackgroundFailureCount} additional failure(s) were not retained."
-                         : string.Empty));
-
-                foreach (Exception failure in window.BackgroundFailures)
-                {
-                    Console.Error.WriteLine ($"- {failure.GetType ().Name}: {failure.Message}");
-                }
-
-                exitCode = 1;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine ($"Shutdown failed: {ex.Message}");
-            exitCode = 1;
-        }
-
-        // A failed window disposal must not skip the application's own Terminal.Gui teardown,
-        // which is what restores the terminal (raw mode, alternate screen, cursor).
-        try
-        {
-            window.Dispose ();
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine ($"Window disposal failed: {ex.Message}");
-            exitCode = 1;
-        }
-    }
-
-    try
-    {
-        app?.Dispose ();
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine ($"Application disposal failed: {ex.Message}");
-        exitCode = 1;
-    }
-}
-
-Environment.ExitCode = exitCode;
+Environment.ExitCode = ApplicationLifetime.Run (
+    () => new TerminalApplication (Application.Create ()),
+    () => new App (backend, smokeMode ? TimeSpan.FromSeconds (1) : null),
+    Console.Error);
 
 return;
 

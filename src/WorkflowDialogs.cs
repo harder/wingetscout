@@ -13,7 +13,7 @@ public sealed class BatchPlanDialog : Runnable<bool>
         SchemeName = Theme.SurfaceSchemeName;
 
         Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{plan.Ready} ready · {plan.Skipped} skipped  —  review each package before continuing" };
-        ListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (plan.Items.Select (x =>
             $"{(x.CanRun ? "READY" : "SKIP ")}  {x.Package.Name} [{x.Package.Id}]  —  {x.Reason}").ToList ()));
         Button run = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = $"_{plan.Action}", IsDefault = true, Enabled = plan.Ready > 0 };
@@ -37,7 +37,7 @@ public sealed class RunRecordDialog : Runnable
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
         Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = record.Summary };
-        ListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (record.Items.Select (x =>
             $"{x.Status,-9} {x.Name} [{x.Id}]  —  {x.Reason}").ToList ()));
         Button close = new () { X = Pos.Center (), Y = Pos.AnchorEnd (1), Text = "_Close", IsDefault = true };
@@ -83,7 +83,7 @@ public sealed class SetManagerDialog : Runnable<SetManagerChoice?>
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
         Label hint = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{selectedCount} currently selected · choose a set or save this selection" };
-        ListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (sets.Select (x => $"{x.Name} ({x.Packages.Count})").ToList ()));
         Button save = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Save current", Enabled = selectedCount > 0 };
         Button load = new () { X = 19, Y = Pos.AnchorEnd (1), Text = "_Load", Enabled = sets.Count > 0 };
@@ -115,7 +115,7 @@ public sealed class RunHistoryDialog : Runnable<int?>
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
-        ListView rows = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        ListView rows = new PackageListView () { X = 1, Y = 1, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (runs.Select (x =>
             $"{x.FinishedAtUtc.ToLocalTime ():g}  {StatusOwnership.TruncateScalarSafe (x.Action, 10),-10} {x.Summary}").ToList ()));
         Button open = new () { X = Pos.Center () - 7, Y = Pos.AnchorEnd (1), Text = "_Open", IsDefault = true };

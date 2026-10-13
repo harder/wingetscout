@@ -37,6 +37,11 @@ generation counters prevent a superseded list or detail request from
 replacing newer results. Detail loading is debounced when selection moves
 quickly.
 
+`src/ApplicationLifetime.cs` owns terminal initialization, the UI run loop,
+bounded background shutdown, and independent window/application disposal.
+Failures retain their stack traces and are printed after terminal cleanup.
+Direct window disposal stops UI callback admission before disposing child views.
+
 ## Workflows and local data
 
 `src/BatchWorkflows.cs` builds reviewed install and upgrade plans.
