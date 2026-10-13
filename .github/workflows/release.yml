@@ -236,7 +236,6 @@ jobs:
           Copy-Item "publish/$rid/*"   "stage/wingetscout/" -Recurse -Exclude *.pdb
           Copy-Item "README.md"        "stage/wingetscout/"
           Copy-Item "LICENSE"          "stage/wingetscout/"
-          Copy-Item "feature-gaps.md"  "stage/wingetscout/"
           Compress-Archive -Path "stage/wingetscout" -DestinationPath "dist/$bundleName.zip" -Force
 
           # Checksum manifest, alphabetized so diff is stable.

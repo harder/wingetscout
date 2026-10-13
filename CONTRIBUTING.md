@@ -16,9 +16,12 @@ Building the actual AOT binary requires a **Windows host** with Visual Studio Bu
 ## Working on a change
 
 1. **Add a test first** when the change touches parser behavior, model semantics, or anything covered by `tests/ParserTests.cs`. Every existing test is anchored to a real bug — please keep that pattern.
-2. **Check real WinGet output** when changing parsing logic. Add representative examples and document UI limitations in [feature-gaps.md](feature-gaps.md).
+2. **Check real WinGet output** when changing parsing logic. Add representative examples and document user-facing limitations in the relevant documentation.
 3. **Run the suite** before opening a PR: `dotnet test --project tests/WinGetScout.Tests.csproj`.
-4. **Check in before large new-feature PRs.** Open an issue or discuss the approach first for anything sizable so the design lands before the code does. Coordinate packaging and signing changes against the [current distribution plan](code-signing.md).
+4. **Check in before large new-feature PRs.** Open an issue or discuss the approach first for anything sizable so the design lands before the code does. Coordinate packaging and signing changes against the [current distribution plan](docs/signing-and-distribution.md).
+
+The [architecture guide](docs/architecture.md) maps the backend, UI, workflow,
+and release code before you change their boundaries.
 
 The repository selects Microsoft.Testing.Platform in `global.json`. Pass the project with
 `--project` as shown above; the older positional `dotnet test tests/...csproj` form is not
@@ -35,6 +38,13 @@ dotnet restore WinGetScout.csproj -p:WingetComMode=Identity --use-lock-file
 Commit `packages.lock.json`, `packages.identity.lock.json`, and
 `tests/packages.lock.json` if they changed. CI reads the SDK version from `global.json`
 and restores both portable and MSIX Identity graphs in locked mode.
+
+For Windows COM changes, publish the Native AOT target for the machine's architecture and
+run `wingetscout.exe --comdiag` from the complete publish folder. The portable build
+needs `WindowsPackageManager.dll` and `Microsoft.Management.Deployment.InProc.dll`
+beside the executable; the MSIX Identity build needs package identity and
+`Microsoft.Management.Deployment.winmd`. A framework-dependent run or a mock
+smoke test does not validate either published activation path.
 
 ## Filing issues
 

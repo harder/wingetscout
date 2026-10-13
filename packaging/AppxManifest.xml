@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  MSIX manifest for download B (the COM build). Placeholders {VERSION} / {ARCH} / {PUBLISHER} are
+  MSIX manifest for the optional package-identity build. Placeholders {VERSION} / {ARCH} / {PUBLISHER} are
   substituted by build-msix.ps1. The package's identity is what lets the Native-AOT exe reach the
-  in-box out-of-process WinGet server (see ../com-activation.md); runFullTrust + the
+  in-box out-of-process WinGet server (see ../README.md); runFullTrust + the
   Windows.FullTrustApplication entry point are required for a packaged desktop app.
 
   Publisher MUST match the subject of the signing certificate, or signtool/install will reject it.

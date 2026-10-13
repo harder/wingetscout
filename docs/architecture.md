@@ -1,0 +1,79 @@
+# Architecture
+
+Scout is a .NET 10 Terminal.Gui application with a shared UI and three package
+backends. The Windows build publishes as Native AOT. Start with the
+[README](../README.md) for installation and the [usage guide](usage.md) for the
+interface.
+
+## Entry and backend selection
+
+`Program.cs` handles diagnostics and startup, creates the Terminal.Gui
+application, and selects an `IBackend` from `src/Backend.cs`. `--mock` uses
+sample packages, `--cli` forces the `winget` command, and `--com` requests
+the WinGet COM API on Windows. The Windows default tries COM and falls back to
+CLI if activation fails. The active backend is reported in the app header;
+`--comdiag` checks activation without starting the UI.
+
+`IBackend` is the boundary for search, installed and upgrade lists, package
+details, versions, installer previews, operations, sources, and pins.
+`src/ComBackend.cs` uses the structured WinGet API, while `src/CliBackend.cs`
+invokes `winget` and parses its output. `src/MockBackend.cs` supports safe UI
+iteration. COM has no pin management surface in this app, so pin operations
+use the CLI even when COM handles the other package work.
+
+## UI and state
+
+`src/App.cs` owns the Terminal.Gui window, package table, detail pane,
+filters, sorting, focus, and status bar. `src/App.Workflows.cs` handles
+package sets and install planning. `src/AppState.cs` holds the current mode,
+packages, filter, selection, sort, progress, and view generations.
+`src/Ui.cs`, `src/DetailPanel.cs`, and `src/WorkflowDialogs.cs` provide the
+smaller views and dialogs.
+
+Backend calls run away from the UI loop. `BackgroundTaskTracker` owns
+admission, cancellation, failure collection, and shutdown of that work.
+`App.DispatchAsync` queues guarded UI changes; cancellation tokens and
+generation counters prevent a superseded list or detail request from
+replacing newer results. Detail loading is debounced when selection moves
+quickly.
+
+## Workflows and local data
+
+`src/BatchWorkflows.cs` builds reviewed install and upgrade plans.
+`src/WorkflowData.cs` persists package sets, run history, and update-check
+settings under `%LOCALAPPDATA%\WinGetScout`. `src/UpdateChecks.cs` runs
+read-only checks and manages the optional current-user scheduled task.
+`src/CsvExporter.cs` exports the visible list. CLI subprocesses run through
+`src/ProcessRunner.cs`, which bounds output and owns process cleanup.
+
+## Windows COM activation
+
+The default `WingetComMode=InProc` Windows build uses `app.manifest` for
+registration-free activation and ships `WindowsPackageManager.dll` plus
+`Microsoft.Management.Deployment.InProc.dll` beside `wingetscout.exe`.
+An unpackaged Native AOT executable alone cannot activate the in-box
+out-of-process WinGet server; the standalone EXE therefore uses CLI.
+
+The optional `WingetComMode=Identity` build uses
+`app.identity.manifest`, MSIX package identity, and
+`Microsoft.Management.Deployment.winmd` to reach the in-box server.
+`packaging/build-msix.ps1` builds that package. The release and signing
+plan is in [signing and distribution](signing-and-distribution.md).
+
+The COM projection's WinRT collections must be copied by index before
+using `foreach` or LINQ. Source agreements are accepted on each source
+reference before a composite catalog is created. These rules are recorded
+beside the implementation in `src/ComBackend.cs` and in
+`.github/copilot-instructions.md`.
+
+## Builds and releases
+
+`WinGetScout.csproj` has a cross-platform `net10.0` target for mock and CLI
+work and a Windows target that includes COM. `global.json` pins the SDK;
+lock files cover the normal app, the MSIX Identity variant, and tests.
+`.github/workflows/ci.yml` builds and tests, while
+`.github/workflows/release.yml` publishes x64 and ARM64 assets,
+checksums, and attestations. The portable ZIP keeps the COM companion
+files together. See the [WinGet submission runbook](winget-submission.md)
+for the community package workflow and the [website guide](website.md)
+for the documentation site.
