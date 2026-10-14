@@ -14,6 +14,8 @@ GitHub releases can ship while a WinGet submission is under review. Bump
 `WinGetScout.csproj` to a new version, merge it into `main`, and push a matching
 `v<version>` tag on that commit. The release workflow checks the version and
 main ancestry, stages and verifies all assets, and publishes the release.
+Add version-specific notes in `docs/releases/<version>.md`; the workflow includes
+them alongside download instructions and GitHub's generated change list.
 Keep published assets immutable: an existing WinGet manifest's URLs and hashes
 must continue to identify the same bytes. Publish a new version for fixes.
 

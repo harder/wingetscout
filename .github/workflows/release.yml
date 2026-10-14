@@ -305,11 +305,19 @@ jobs:
             }
 
       - name: Compose release notes
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
         run: |
           cat > release-notes.md <<'EOF'
           # Scout for WinGet
 
           Scout for WinGet manages real Windows packages. Install, upgrade, uninstall, and repair actions change your package state. See the [README](https://github.com/${{ github.repository }}#readme) for setup and usage.
+
+          EOF
+          if [ -f "docs/releases/$VERSION.md" ]; then
+            cat "docs/releases/$VERSION.md" >> release-notes.md
+          fi
+          cat >> release-notes.md <<'EOF'
 
           ## Downloads
 
