@@ -51,6 +51,10 @@ jobs:
             echo "::error::Release tag must point to a commit on main"
             exit 1
           }
+          if [ ! -s "docs/releases/$version.md" ]; then
+            echo "::error::Add nonempty release notes at docs/releases/$version.md before tagging"
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Reject an already published tag
@@ -305,11 +309,17 @@ jobs:
             }
 
       - name: Compose release notes
+        env:
+          VERSION: ${{ needs.validate-tag.outputs.version }}
         run: |
           cat > release-notes.md <<'EOF'
           # Scout for WinGet
 
           Scout for WinGet manages real Windows packages. Install, upgrade, uninstall, and repair actions change your package state. See the [README](https://github.com/${{ github.repository }}#readme) for setup and usage.
+
+          EOF
+          cat "docs/releases/$VERSION.md" >> release-notes.md
+          cat >> release-notes.md <<'EOF'
 
           ## Downloads
 

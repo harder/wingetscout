@@ -8,7 +8,9 @@ explains the main workflows and where their results are stored.
 
 The **Search**, **Installed**, and **Upgrades** tabs share a package list and
 detail pane. Use `←`/`→` or `1`/`2`/`3` to switch tabs, `↑`/`↓` or
-`j`/`k` to move through rows, and `Tab` to move focus between list and
+`j`/`k` to move through rows, `PageUp`/`PageDown` to scroll a page, and
+`Home`/`End` to jump to the first or last row. Moving beyond either end keeps
+focus in the list. Use `Tab`/`Shift+Tab` to move focus between list and
 detail. You can also click a tab or package row and scroll with the mouse.
 
 In Search, `/` or `s` opens a package query. In Installed or Upgrades, it
