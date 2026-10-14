@@ -468,7 +468,7 @@ public sealed class VersionPickerDialog : Runnable<string?>
 
         Label prompt = new () { X = 1, Y = 0, Text = "Pick a version (newest first):" };
 
-        ListView list = new ()
+        ListView list = new PackageListView ()
         {
             X = 1,
             Y = 1,
@@ -477,7 +477,7 @@ public sealed class VersionPickerDialog : Runnable<string?>
             SchemeName = Theme.SurfaceSchemeName
         };
         list.SetSource (new ObservableCollection<string> (versions));
-        list.SelectedItem = 0;
+        list.SelectedItem = versions.Count > 0 ? 0 : null;
 
         Button install = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Install", IsDefault = true };
         Button cancel = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
