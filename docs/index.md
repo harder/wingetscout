@@ -7,7 +7,6 @@ Start with the [README](../README.md) for installation and a quick tour, or
 | --- | --- |
 | [Usage](usage.md) | Navigation, package actions, saved sets, and update checks |
 | [Architecture](architecture.md) | Backend, UI, workflow, Native AOT, and release code |
-| [Signing and distribution](signing-and-distribution.md) | Portable and MSIX release plan and signing |
-| [WinGet submission](winget-submission.md) | Community package manifest generation and validation |
+| [Signing and distribution](signing-and-distribution.md) | Releases, WinGet manifest updates, and portable/MSIX signing |
 | [Directory submissions](directory-submissions.md) | Other listing and package directory submissions |
 | [Website](website.md) | Building the site and refreshing its screenshots |
