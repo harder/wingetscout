@@ -6,7 +6,7 @@ The first WinGet community package uses the complete **portable ZIP**. The relea
 
 WinGet verifies the ZIP against `InstallerSha256`, extracts it into a managed portable package directory, and makes the `wingetscout` command available on `PATH`. That provides installation, upgrade, and uninstall behavior; **WinGet does not sign the executable or grant it a trusted publisher identity**. A first run may still encounter Windows reputation warnings. A published GitHub checksum or attestation proves different things from a Windows code signature.
 
-Signed **MSIX** is a later distribution option. It supplies Windows package identity for the out-of-process WinGet COM backend and needs a certificate trusted by the target PC. The release workflow builds and signs MSIX only when all signing settings below exist. At present it signs the MSIX package, **not** the portable ZIP's executable. For the COM activation details, see [com-activation.md](com-activation.md).
+Signed **MSIX** is a later distribution option. It supplies Windows package identity for the out-of-process WinGet COM backend and needs a certificate trusted by the target PC. Its Native AOT build also ships `Microsoft.Management.Deployment.winmd` so WinRT can resolve the projected types; identity alone is insufficient. The release workflow builds and signs MSIX only when all signing settings below exist. At present it signs the MSIX package, **not** the portable ZIP's executable. The build modes and activation check are documented in the [README](../README.md#backends-and-capabilities).
 
 ## Get a publicly trusted signature for MSIX
 

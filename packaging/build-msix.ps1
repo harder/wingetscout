@@ -1,21 +1,21 @@
 <#
 .SYNOPSIS
   Build (and optionally sign / test) the MSIX: a Native-AOT, package-identity build of
-  wingetscout that reaches the in-box out-of-process WinGet COM server. See ../com-activation.md.
+  wingetscout that reaches the in-box out-of-process WinGet COM server. See ../README.md.
 
 .DESCRIPTION
   Steps: publish the WingetComMode=Identity AOT build -> stage the package layout (exe + 61 KB winmd
   + manifest + logos, minus the .pdb) -> MakeAppx pack -> optionally signtool sign.
 
   On an ARM64 host the AOT publish must run inside a VS Dev Shell (ILC calls a bare vswhere.exe) —
-  see README / com-activation.md. GitHub's windows-latest x64 runner needs no special shell.
+  see README.md. GitHub's windows-latest x64 runner needs no special shell.
 
 .EXAMPLE
   # Local self-signed build + prove COM activates under the package identity (Developer Mode):
   pwsh ./packaging/build-msix.ps1 -Arch arm64 -SelfSigned -TestRegister
 
 .EXAMPLE
-  # CI: pack only (sign separately with Azure Artifact Signing, see code-signing.md):
+  # CI: pack only (sign separately with Azure Artifact Signing, see docs/signing-and-distribution.md):
   pwsh ./packaging/build-msix.ps1 -Arch x64
 #>
 [CmdletBinding()]

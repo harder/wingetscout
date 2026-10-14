@@ -4,7 +4,7 @@ namespace WinGetScout;
 /// Right-side package detail panel. Renders the package's metadata with inline styles —
 /// label/value pairs in accent vs primary, URLs in info-blue with underline, and the
 /// action shortcuts with the key in accent. Implemented via direct drawing because
-/// Terminal.Gui v2 doesn't yet expose a rich-text Span/Line primitive (see feature-gaps.md).
+/// Terminal.Gui v2 doesn't yet expose a rich-text Span/Line primitive for this layout.
 /// </summary>
 public sealed class DetailPanel : FrameView
 {

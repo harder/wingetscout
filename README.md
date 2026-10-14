@@ -8,6 +8,8 @@
 
 [Website](https://wingetscout.com/) · [Documentation](https://wingetscout.com/docs.html) · [Releases](https://github.com/harder/wingetscout/releases)
 
+[Guides](https://github.com/harder/wingetscout/blob/main/docs/index.md) · [Usage](https://github.com/harder/wingetscout/blob/main/docs/usage.md) · [Architecture](https://github.com/harder/wingetscout/blob/main/docs/architecture.md)
+
 ![Scout search results and package details in the Sage theme, using sample data](site/media/scout-sage-search.png)
 
 [Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). These captures use Scout's safe `--mock` mode and show sample packages.
@@ -16,9 +18,9 @@
 
 **Recommended: download the portable ZIP** from [GitHub Releases](https://github.com/harder/wingetscout/releases). It includes `wingetscout.exe` and the companion files needed for the full WinGet COM experience. No .NET runtime or installer is required.
 
-A WinGet community package is being prepared as `Harder.WinGetScout`. Use the release ZIP until the [community submission](packaging/WINGET-SUBMISSION.md) is accepted.
+A WinGet community package is being prepared as `Harder.WinGetScout`. Use the release ZIP until the [community submission](https://github.com/harder/wingetscout/blob/main/docs/winget-submission.md) is accepted.
 
-After that package is accepted, `winget install -e --id Harder.WinGetScout` will install the ZIP into WinGet's managed portable directory and add `wingetscout` to your user `PATH`. Open a **new terminal** to use the command from any folder. The WinGet manifest already requests this behavior; it does not require a separate installer or manual PATH editing. WinGet verifies the downloaded ZIP hash, but it does not sign the executable. See [signing and distribution](code-signing.md).
+After that package is accepted, `winget install -e --id Harder.WinGetScout` will install the ZIP into WinGet's managed portable directory and add `wingetscout` to your user `PATH`. Open a **new terminal** to use the command from any folder. The WinGet manifest already requests this behavior; it does not require a separate installer or manual PATH editing. WinGet verifies the downloaded ZIP hash, but it does not sign the executable. See [signing and distribution](https://github.com/harder/wingetscout/blob/main/docs/signing-and-distribution.md).
 
 1. Choose the ZIP for your Windows PC:
 
@@ -39,9 +41,9 @@ Scout requires Windows 10 or 11 and [WinGet](https://learn.microsoft.com/windows
 ### Other downloads
 
 - **Single executable:** `wingetscout-x64.exe` or `wingetscout-arm64.exe` is the smallest portable option. It runs through the `winget` CLI because the COM companion files are not included. Run the downloaded filename directly, for example `.\wingetscout-x64.exe`.
-- **MSIX:** This is not a release download yet. See the [signing plan](code-signing.md) for the work needed before a signed package can be offered.
+- **MSIX:** This is not a release download yet. See the [signing plan](https://github.com/harder/wingetscout/blob/main/docs/signing-and-distribution.md) for the work needed before a signed package can be offered.
 
-Portable downloads are currently unsigned. If Windows shows a SmartScreen warning, verify that the file came from this repository's release page and compare its SHA-256 hash with the release's `SHA256SUMS` file before choosing **More info → Run anyway**. You can also right-click the downloaded file, open **Properties**, and select **Unblock** when Windows offers it. See [code signing](code-signing.md) for the current signing status.
+Portable downloads are currently unsigned. If Windows shows a SmartScreen warning, verify that the file came from this repository's release page and compare its SHA-256 hash with the release's `SHA256SUMS` file before choosing **More info → Run anyway**. You can also right-click the downloaded file, open **Properties**, and select **Unblock** when Windows offers it. See [code signing](https://github.com/harder/wingetscout/blob/main/docs/signing-and-distribution.md) for the current signing status.
 
 ## What you can do
 
@@ -70,6 +72,8 @@ The **Search**, **Installed**, and **Upgrades** tabs share a package list and de
 
 The status bar shows the shortcuts relevant to the current tab. Scout also supports mouse input, sorting, source filters, download-only and advanced installs, and direct homepage or changelog links.
 
+See the [usage guide](https://github.com/harder/wingetscout/blob/main/docs/usage.md) for the full workflow and shortcut reference.
+
 ## Scheduled update checks and local data
 
 In **Upgrades**, press `C` to run a check now or schedule one at a daily local time. A schedule creates a current-user Windows Task Scheduler task. The first successful check establishes a baseline; later checks can notify you about new or changed unpinned upgrades, or a failed check. Disable the schedule from the same dialog to remove the task. Windows notification settings still control whether toasts appear.
@@ -80,7 +84,11 @@ Scout stores package sets, recent run results, check results, and schedule setti
 
 The portable ZIP uses the structured **WinGet COM API** by default. If COM cannot activate, Scout falls back to the `winget` CLI and reports the active backend in its header. The standalone `.exe` download uses the CLI backend because it does not include the COM files. Pin operations use the CLI in either case.
 
-COM enables richer package details, installer previews and version lists, live progress, and supported verify or repair operations. Search, install, upgrade, uninstall, pinning, saved sets, run history, and scheduled checks remain available through the CLI backend; some detail fields and actions depend on what that backend exposes. See [known limitations](feature-gaps.md) and [COM activation details](com-activation.md).
+COM enables richer package details, installer previews and version lists, live progress, and supported verify or repair operations. Search, install, upgrade, uninstall, pinning, saved sets, run history, and scheduled checks remain available through the CLI backend; some detail fields and actions depend on what that backend exposes.
+
+Native ARM64 COM installs and requested x64 architecture selection on ARM64 have unresolved limitations; see [known COM limitations](https://github.com/harder/wingetscout/blob/main/docs/architecture.md#known-com-limitations) before relying on those paths.
+
+The portable Native AOT build activates WinGet COM through a registration-free manifest and the in-process engine DLLs shipped in the ZIP. An unpackaged AOT executable cannot activate the in-box out-of-process server on its own. The optional `WingetComMode=Identity` build instead uses MSIX package identity and ships `Microsoft.Management.Deployment.winmd` to reach that server. The standalone EXE has neither set of COM prerequisites and uses the CLI backend.
 
 ## Inspiration and credits
 
@@ -113,10 +121,12 @@ dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r w
 
 Keep the complete `publish` folder for COM support. For UI work on Windows, Linux, or macOS, run `dotnet run -f net10.0 -- --mock` to use sample packages without changing the machine's package state. On Windows, `dotnet run -f net10.0-windows10.0.26100.0 -r win-x64` (or `win-arm64`) exercises the COM-capable build.
 
+To check COM activation on Windows, run `wingetscout.exe --comdiag` from the complete published folder. Use that diagnostic before relying on an interactive run; the app's header shows whether it activated COM or fell back to CLI. The identity build for local MSIX testing uses `dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r win-x64 -p:WingetComMode=Identity` and requires package registration before COM activation.
+
 Run the tests with:
 
 ```powershell
 dotnet test --project tests/WinGetScout.Tests.csproj
 ```
 
-The test project uses Microsoft.Testing.Platform, so pass it with `--project`. For contributor setup and code style, see [CONTRIBUTING.md](CONTRIBUTING.md). For backend diagnostics, packaging, and signing, see [com-activation.md](com-activation.md), [WINDOWS-TESTING.md](WINDOWS-TESTING.md), and [code-signing.md](code-signing.md).
+The test project uses Microsoft.Testing.Platform, so pass it with `--project`. For contributor setup and code style, see [CONTRIBUTING.md](https://github.com/harder/wingetscout/blob/main/CONTRIBUTING.md). For the code paths and release build, see [architecture](https://github.com/harder/wingetscout/blob/main/docs/architecture.md) and [signing and distribution](https://github.com/harder/wingetscout/blob/main/docs/signing-and-distribution.md).

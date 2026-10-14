@@ -19,6 +19,6 @@
     Bare manifest for the WingetComMode=Identity (MSIX) build. Unlike app.manifest, it does NOT
     route WinRT activation to an in-process server: the MSIX supplies package identity, which (plus
     the projection winmd shipped beside the exe) lets `new PackageManager()` reach the in-box
-    out-of-process WinGet server under Native AOT. See com-activation.md.
+    out-of-process WinGet server under Native AOT. See README.md.
   -->
 </assembly>
