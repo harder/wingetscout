@@ -86,6 +86,8 @@ The portable ZIP uses the structured **WinGet COM API** by default. If COM canno
 
 COM enables richer package details, installer previews and version lists, live progress, and supported verify or repair operations. Search, install, upgrade, uninstall, pinning, saved sets, run history, and scheduled checks remain available through the CLI backend; some detail fields and actions depend on what that backend exposes.
 
+Native ARM64 COM installs and requested x64 architecture selection on ARM64 have unresolved limitations; see [known COM limitations](https://github.com/harder/wingetscout/blob/main/docs/architecture.md#known-com-limitations) before relying on those paths.
+
 The portable Native AOT build activates WinGet COM through a registration-free manifest and the in-process engine DLLs shipped in the ZIP. An unpackaged AOT executable cannot activate the in-box out-of-process server on its own. The optional `WingetComMode=Identity` build instead uses MSIX package identity and ships `Microsoft.Management.Deployment.winmd` to reach that server. The standalone EXE has neither set of COM prerequisites and uses the CLI backend.
 
 ## Inspiration and credits

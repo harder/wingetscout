@@ -66,6 +66,20 @@ reference before a composite catalog is created. These rules are recorded
 beside the implementation in `src/ComBackend.cs` and in
 `.github/copilot-instructions.md`.
 
+## Known COM limitations
+
+Native ARM64 COM installs remain unresolved. On 2026-09-30, a native AOT COM
+install of zoxide 0.10.0 with WinGet COM 1.29.380 repeatedly ended in
+`0xC0000005` near completion, and the package was not installed. The same
+install succeeded through the CLI backend. Read-only COM operations worked,
+but do not treat them as validation of native ARM64 COM mutations.
+
+On ARM64, choosing x64 for Microsoft.PowerToys in advanced install still showed
+an ARM64 installer in the COM preview. `ApplyInstallSettings` appends the
+requested architecture to WinGet's existing `AllowedArchitectures` vector
+(`src/ComBackend.cs`), leaving ARM64 first; the x64 override may therefore be
+ignored. Do not assume the requested architecture is honored.
+
 ## Builds and releases
 
 `WinGetScout.csproj` has a cross-platform `net10.0` target for mock and CLI
