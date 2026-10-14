@@ -26,9 +26,11 @@ $version = '1.0.2' # substitute an already published release
 pwsh ./packaging/prepare-winget-submission.ps1 -Version $version
 ```
 
-The helper requires `gh`, a GitHub login, and `winget`. Test installation,
-`wingetscout --smoke`, `wingetscout --comdiag`, and uninstall in Windows Sandbox
-using the published ZIPs. For a local-manifest install before catalog acceptance,
+The helper requires `gh`, a GitHub login, and `winget`. Test installation in
+Windows Sandbox using the published ZIPs. After installation, open a new terminal
+so it sees the updated user `PATH`, and use `Get-Command wingetscout` to verify the
+command alias resolves to the installed package. Run `wingetscout --smoke`,
+`wingetscout --comdiag`, and test uninstall. For a local-manifest install before catalog acceptance,
 uninstall with `winget uninstall --manifest <manifest-directory>`; the final
 community package ID may not yet resolve. See Microsoft's
 [submission and Sandbox validation instructions](https://learn.microsoft.com/en-us/windows/package-manager/package/repository).
