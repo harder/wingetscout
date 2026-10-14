@@ -18,7 +18,7 @@
 
 **Recommended: download the portable ZIP** from [GitHub Releases](https://github.com/harder/wingetscout/releases). It includes `wingetscout.exe` and the companion files needed for the full WinGet COM experience. No .NET runtime or installer is required.
 
-A WinGet community package is being prepared as `Harder.WinGetScout`. Use the release ZIP until the [community submission](https://github.com/harder/wingetscout/blob/main/docs/winget-submission.md) is accepted.
+A WinGet community package has been submitted as `Harder.WinGetScout`. Use the release ZIP until the [community submission](https://github.com/microsoft/winget-pkgs/pull/451328) is accepted.
 
 After that package is accepted, `winget install -e --id Harder.WinGetScout` will install the ZIP into WinGet's managed portable directory and add `wingetscout` to your user `PATH`. Open a **new terminal** to use the command from any folder. The WinGet manifest already requests this behavior; it does not require a separate installer or manual PATH editing. WinGet verifies the downloaded ZIP hash, but it does not sign the executable. See [signing and distribution](https://github.com/harder/wingetscout/blob/main/docs/signing-and-distribution.md).
 

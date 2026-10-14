@@ -8,6 +8,41 @@ WinGet verifies the ZIP against `InstallerSha256`, extracts it into a managed po
 
 Signed **MSIX** is a later distribution option. It supplies Windows package identity for the out-of-process WinGet COM backend and needs a certificate trusted by the target PC. Its Native AOT build also ships `Microsoft.Management.Deployment.winmd` so WinRT can resolve the projected types; identity alone is insufficient. The release workflow builds and signs MSIX only when all signing settings below exist. At present it signs the MSIX package, **not** the portable ZIP's executable. The build modes and activation check are documented in the [README](../README.md#backends-and-capabilities).
 
+## Releases and WinGet updates
+
+GitHub releases can ship while a WinGet submission is under review. Bump
+`WinGetScout.csproj` to a new version, merge it into `main`, and push a matching
+`v<version>` tag on that commit. The release workflow checks the version and
+main ancestry, stages and verifies all assets, and publishes the release.
+Keep published assets immutable: an existing WinGet manifest's URLs and hashes
+must continue to identify the same bytes. Publish a new version for fixes.
+
+For stable releases, the workflow downloads the published ZIPs back and saves
+their three-file WinGet manifest set as the `winget-manifests-<version>` workflow
+artifact. To regenerate and validate that set locally:
+
+```powershell
+$version = '1.0.2' # substitute an already published release
+pwsh ./packaging/prepare-winget-submission.ps1 -Version $version
+```
+
+The helper requires `gh`, a GitHub login, and `winget`. Test installation in
+Windows Sandbox using the published ZIPs. After installation, open a new terminal
+so it sees the updated user `PATH`, and use `Get-Command wingetscout` to verify the
+command alias resolves to the installed package. Run `wingetscout --smoke`,
+`wingetscout --comdiag`, and test uninstall. For a local-manifest install before catalog acceptance,
+uninstall with `winget uninstall --manifest <manifest-directory>`; the final
+community package ID may not yet resolve. See Microsoft's
+[submission and Sandbox validation instructions](https://learn.microsoft.com/en-us/windows/package-manager/package/repository).
+
+Keep the package ID `Harder.WinGetScout`. Each WinGet PR contains only one
+version's three YAML files under `manifests/h/Harder/WinGetScout/<version>/`.
+If the initial package PR is still open, the recommended approach for shipping
+the newest build first is to update that PR's branch with the new manifest set,
+remove the previously proposed version's files, and update its title and test
+notes. Validation must run again. If the earlier version has already merged,
+submit the new version in a separate PR and retain the accepted version's files.
+
 ## Get a publicly trusted signature for MSIX
 
 The workflow is wired to [Azure Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart), previously called Azure Trusted Signing. Its Basic tier currently costs about US$10 per month; check [Microsoft's current pricing](https://learn.microsoft.com/en-us/azure/artifact-signing/how-to-change-sku) before creating an account. Public Trust is available to individual developers in the US and Canada, and to organizations in Microsoft's listed regions. For individual validation, the Azure billing account must be **Individual**, and its legal name and address must match the government ID used for verification.

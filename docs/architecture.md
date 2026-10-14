@@ -93,6 +93,6 @@ lock files cover the normal app, the MSIX Identity variant, and tests.
 `.github/workflows/ci.yml` builds and tests, while
 `.github/workflows/release.yml` publishes x64 and ARM64 assets,
 checksums, and attestations. The portable ZIP keeps the COM companion
-files together. See the [WinGet submission runbook](winget-submission.md)
+files together. See [release and WinGet updates](signing-and-distribution.md#releases-and-winget-updates)
 for the community package workflow and the [website guide](website.md)
 for the documentation site.
