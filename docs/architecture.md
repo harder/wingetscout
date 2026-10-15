@@ -13,6 +13,8 @@ sample packages, `--cli` forces the `winget` command, and `--com` requests
 the WinGet COM API on Windows. The Windows default tries COM and falls back to
 CLI if activation fails. The active backend is reported in the app header;
 `--comdiag` checks activation without starting the UI.
+`--comsmoke` runs read-only COM inventory, search, details, versions, and
+installer-preview checks without fallback; it returns a nonzero exit code on failure.
 
 `IBackend` is the boundary for search, installed and upgrade lists, package
 details, versions, installer previews, operations, sources, and pins.
@@ -36,6 +38,9 @@ admission, cancellation, failure collection, and shutdown of that work.
 generation counters prevent a superseded list or detail request from
 replacing newer results. Detail loading is debounced when selection moves
 quickly.
+
+The dispatch wrapper awaits Terminal.Gui's `InvokeAsync`, which settles queued
+work when the final UI session ends and operates independently of user timers.
 
 `src/ApplicationLifetime.cs` owns terminal initialization, the UI run loop,
 bounded background shutdown, and independent window/application disposal.

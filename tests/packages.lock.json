@@ -191,8 +191,8 @@
       },
       "Terminal.Gui": {
         "type": "Transitive",
-        "resolved": "2.5.1-develop.44",
-        "contentHash": "QjzoHcNar7thQtOr8NJO61s9i7vJAOCnAtrrohh91ZMTFg0AM1ZbEp8u8LYehqAyOaGDrSTBFunbB1BLtH8VPQ==",
+        "resolved": "2.5.1-develop.81",
+        "contentHash": "cCTMYYr1CIWwsGrxOLoAjblsDMSHr+YJxScsETHw+ZiMwuu9gbTiXauXIeZ7g3148hM8iZTsYE9kHb1aiIZLzg==",
         "dependencies": {
           "ColorHelper": "1.8.1",
           "JetBrains.Annotations": "2026.2.0",
@@ -321,7 +321,7 @@
       "wingetscout": {
         "type": "Project",
         "dependencies": {
-          "Terminal.Gui": "[2.5.1-develop.44, )"
+          "Terminal.Gui": "[2.5.1-develop.81, )"
         }
       }
     }

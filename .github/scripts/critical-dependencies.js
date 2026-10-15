@@ -14,6 +14,16 @@ function compareParts(left, right) {
   return 0;
 }
 
+// Develop builds can be backmerged with a smaller version number. Publication
+// time prevents an older, numerically higher prerelease from masking new builds.
+function latestDevelop(entries) {
+  return entries
+    .map(entry => entry.catalogEntry)
+    .filter(entry => entry && entry.listed !== false && developVersion(entry.version)
+      && Number.isFinite(Date.parse(entry.published)) && Date.parse(entry.published) > 0)
+    .sort((a, b) => Date.parse(b.published) - Date.parse(a.published))[0];
+}
+
 function suggestedChecks(notes) {
   const text = (notes || '').toLowerCase();
   const checks = [];
@@ -58,18 +68,28 @@ async function checkTerminalGui(github, core, owner, repo, project) {
   const current = developVersion(match[1]);
   if (!current) throw new Error(`Expected a Terminal.Gui develop prerelease, got ${match[1]}`);
 
-  const response = await fetch('https://api.nuget.org/v3-flatcontainer/terminal.gui/index.json', {
+  const response = await fetch('https://api.nuget.org/v3/registration5-gz-semver2/terminal.gui/index.json', {
     signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error(`NuGet returned HTTP ${response.status}`);
-  const { versions } = await response.json();
-  const candidates = versions
-    .map(version => ({ version, parts: developVersion(version) }))
-    .filter(candidate => candidate.parts)
-    .sort((a, b) => compareParts(b.parts, a.parts));
-  if (candidates.length === 0) throw new Error('No Terminal.Gui develop versions found');
-  const latest = candidates[0];
-  if (compareParts(latest.parts, current) <= 0) {
+  const registration = await response.json();
+  const entries = [];
+  for (const page of registration.items) {
+    const upperCore = page.upper.split('-')[0].split('.').map(Number);
+    if (compareParts(upperCore, current.slice(0, 3)) < 0) continue;
+    if (page.items) {
+      entries.push(...page.items);
+    } else {
+      const pageResponse = await fetch(page['@id'], { signal: AbortSignal.timeout(15000) });
+      if (!pageResponse.ok) throw new Error(`NuGet returned HTTP ${pageResponse.status}`);
+      entries.push(...(await pageResponse.json()).items);
+    }
+  }
+  const latest = latestDevelop(entries);
+  if (!latest) throw new Error('No Terminal.Gui develop versions found');
+  const installed = entries.find(entry => entry.catalogEntry?.version === match[1])?.catalogEntry;
+  if (!installed) throw new Error(`NuGet publication date missing for ${match[1]}`);
+  if (Date.parse(latest.published) <= Date.parse(installed.published)) {
     core.info(`Terminal.Gui develop is current: ${match[1]}`);
     return;
   }
@@ -130,3 +150,4 @@ module.exports = async ({ github, context, core, projectText = fs.readFileSync('
 module.exports.developVersion = developVersion;
 module.exports.compareParts = compareParts;
 module.exports.suggestedChecks = suggestedChecks;
+module.exports.latestDevelop = latestDevelop;

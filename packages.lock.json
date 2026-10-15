@@ -16,9 +16,9 @@
       },
       "Terminal.Gui": {
         "type": "Direct",
-        "requested": "[2.5.1-develop.44, )",
-        "resolved": "2.5.1-develop.44",
-        "contentHash": "QjzoHcNar7thQtOr8NJO61s9i7vJAOCnAtrrohh91ZMTFg0AM1ZbEp8u8LYehqAyOaGDrSTBFunbB1BLtH8VPQ==",
+        "requested": "[2.5.1-develop.81, )",
+        "resolved": "2.5.1-develop.81",
+        "contentHash": "cCTMYYr1CIWwsGrxOLoAjblsDMSHr+YJxScsETHw+ZiMwuu9gbTiXauXIeZ7g3148hM8iZTsYE9kHb1aiIZLzg==",
         "dependencies": {
           "ColorHelper": "1.8.1",
           "JetBrains.Annotations": "2026.2.0",
@@ -358,9 +358,9 @@
       },
       "Terminal.Gui": {
         "type": "Direct",
-        "requested": "[2.5.1-develop.44, )",
-        "resolved": "2.5.1-develop.44",
-        "contentHash": "QjzoHcNar7thQtOr8NJO61s9i7vJAOCnAtrrohh91ZMTFg0AM1ZbEp8u8LYehqAyOaGDrSTBFunbB1BLtH8VPQ==",
+        "requested": "[2.5.1-develop.81, )",
+        "resolved": "2.5.1-develop.81",
+        "contentHash": "cCTMYYr1CIWwsGrxOLoAjblsDMSHr+YJxScsETHw+ZiMwuu9gbTiXauXIeZ7g3148hM8iZTsYE9kHb1aiIZLzg==",
         "dependencies": {
           "ColorHelper": "1.8.1",
           "JetBrains.Annotations": "2026.2.0",

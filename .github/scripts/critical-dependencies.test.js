@@ -9,7 +9,11 @@ test('critical releases create one assigned issue each and stay quiet on later r
   let labelExists = false;
   global.fetch = async () => ({
     ok: true,
-    json: async () => ({ versions: ['2.5.1-develop.44', '2.5.1-develop.45'] }),
+    json: async () => ({ items: [{ upper: '2.6.0-develop.61', items: [
+      { catalogEntry: { version: '2.5.1-develop.44', published: '2026-10-12T00:00:00Z' } },
+      { catalogEntry: { version: '2.5.1-develop.45', published: '2026-10-13T00:00:00Z' } },
+      { catalogEntry: { version: '2.6.0-develop.61', published: '2026-10-01T00:00:00Z' } },
+    ] }] }),
   });
   const github = {
     paginate: async () => issues,
@@ -60,4 +64,50 @@ test('critical releases create one assigned issue each and stay quiet on later r
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test('develop selection follows publication time across backmerged version trains', () => {
+  const entry = (version, published, listed = true) => ({ catalogEntry: { version, published, listed } });
+  assert.equal(monitor.latestDevelop([
+    entry('2.6.0-develop.61', '2026-10-01T00:00:00Z'),
+    entry('2.5.1-develop.44', '2026-10-12T00:00:00Z'),
+    entry('2.5.1-develop.81', '2026-10-14T00:00:00Z'),
+    entry('2.5.1', '2026-10-15T00:00:00Z'),
+    entry('2.5.1-develop.82', '2026-10-15T00:00:00Z', false),
+    entry('2.5.1-develop.83', 'invalid'),
+  ]).version, '2.5.1-develop.81');
+});
+
+test('paged registration ignores older trains and stays quiet on the newest publication', async () => {
+  const originalFetch = global.fetch;
+  const urls = [];
+  const entry = (version, published) => ({ catalogEntry: { version, published } });
+  global.fetch = async url => {
+    urls.push(url);
+    return { ok: true, json: async () => url.endsWith('/index.json') ? { items: [
+      { upper: '2.4.15', '@id': 'https://example.invalid/old' },
+      { upper: '2.6.0-develop.61', '@id': 'https://example.invalid/page' },
+    ] } : { items: [
+      entry('2.5.1-develop.44', '2026-09-28T11:36:50Z'),
+      entry('2.5.1-develop.81', '2026-10-13T21:40:06Z'),
+      entry('2.6.0-develop.61', '2026-09-03T16:07:46Z'),
+    ] } };
+  };
+  const github = { rest: {
+    issues: {
+      getLabel: async () => ({}),
+      create: async () => assert.fail('Already current; no issue should be created'),
+    },
+    repos: { listReleases: async ({ repo }) => {
+      assert.equal(repo, 'winget-cli');
+      return { data: [{ tag_name: 'v1.29.380', draft: false, prerelease: false }] };
+    } },
+  }, paginate: async () => [{ title: 'WinGet stable release: v1.29.380' }] };
+  try {
+    await monitor({ github, context: { repo: { owner: 'harder', repo: 'wingetscout' } },
+      core: { info: () => {} },
+      projectText: '<PackageReference Include="Terminal.Gui" Version="2.5.1-develop.81" />' });
+    assert.equal(urls.length, 2);
+    assert.equal(urls[1], 'https://example.invalid/page');
+  } finally { global.fetch = originalFetch; }
 });
