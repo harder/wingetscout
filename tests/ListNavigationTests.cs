@@ -254,6 +254,22 @@ public sealed class ListNavigationTests
     }
 
     [Fact]
+    public async Task AwaitableDispatchPreservesActionFailureAfterShutdownStarts ()
+    {
+        using UiSession ui = new (AppMode.Installed, 1);
+        Task pending = ui.Dispatch (() =>
+        {
+            ui.Invoke ("BeginShutdown");
+            throw new InvalidOperationException ("failure during shutdown");
+        }, CancellationToken.None);
+
+        ui.PumpUntil (() => pending.IsCompleted);
+
+        InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException> (() => pending);
+        Assert.Equal ("failure during shutdown", failure.Message);
+    }
+
+    [Fact]
     public async Task AwaitableDispatchSettlesWhenFinalSessionEndsWithoutPumping ()
     {
         using UiSession ui = new (AppMode.Installed, 1);

@@ -503,7 +503,7 @@ public sealed partial class App : Window
         {
             // Request/lifetime cancellation or Terminal.Gui ending its final session.
         }
-        catch (Exception) when (!CanQueue ())
+        catch (Exception) when (!started && !CanQueue ())
         {
             // A concurrent shutdown can close dispatch admission before InvokeAsync starts.
         }

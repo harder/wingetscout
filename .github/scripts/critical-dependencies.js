@@ -7,13 +7,6 @@ function developVersion(version) {
   return match ? match.slice(1).map(Number) : null;
 }
 
-function compareParts(left, right) {
-  for (let index = 0; index < left.length; index++) {
-    if (left[index] !== right[index]) return left[index] - right[index];
-  }
-  return 0;
-}
-
 // Develop builds can be backmerged with a smaller version number. Publication
 // time prevents an older, numerically higher prerelease from masking new builds.
 function latestDevelop(entries) {
@@ -65,8 +58,7 @@ async function createOnce(github, core, owner, repo, title, body) {
 async function checkTerminalGui(github, core, owner, repo, project) {
   const match = /<PackageReference Include="Terminal\.Gui" Version="([^"]+)"/.exec(project);
   if (!match) throw new Error('Terminal.Gui PackageReference was not found');
-  const current = developVersion(match[1]);
-  if (!current) throw new Error(`Expected a Terminal.Gui develop prerelease, got ${match[1]}`);
+  if (!developVersion(match[1])) throw new Error(`Expected a Terminal.Gui develop prerelease, got ${match[1]}`);
 
   const response = await fetch('https://api.nuget.org/v3/registration5-gz-semver2/terminal.gui/index.json', {
     signal: AbortSignal.timeout(15000),
@@ -75,8 +67,6 @@ async function checkTerminalGui(github, core, owner, repo, project) {
   const registration = await response.json();
   const entries = [];
   for (const page of registration.items) {
-    const upperCore = page.upper.split('-')[0].split('.').map(Number);
-    if (compareParts(upperCore, current.slice(0, 3)) < 0) continue;
     if (page.items) {
       entries.push(...page.items);
     } else {
@@ -148,6 +138,5 @@ module.exports = async ({ github, context, core, projectText = fs.readFileSync('
 };
 
 module.exports.developVersion = developVersion;
-module.exports.compareParts = compareParts;
 module.exports.suggestedChecks = suggestedChecks;
 module.exports.latestDevelop = latestDevelop;
