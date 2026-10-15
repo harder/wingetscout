@@ -5,6 +5,35 @@ namespace WinGetScout.Tests;
 public sealed class BackendBoundaryTests
 {
     [Fact]
+    public void FailedQueryDoesNotReadMatchesAndRetainsStatusAndHResult ()
+    {
+        Exception cause = new System.Runtime.InteropServices.COMException ("catalog unavailable", unchecked ((int)0x80070005));
+        bool readMatches = false;
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException> (() =>
+            BackendQuery.ReadResults (false, "CatalogError", cause, () =>
+            {
+                readMatches = true;
+                return Array.Empty<Package> ();
+            }));
+
+        Assert.False (readMatches);
+        Assert.Contains ("CatalogError", failure.Message);
+        Assert.Contains ("0x80070005", failure.Message);
+        Assert.Same (cause, failure.InnerException);
+    }
+
+    [Fact]
+    public void SuccessfulQueryAllowsAnEmptyInventoryOrUpgradeList ()
+    {
+        Package [] empty = [];
+        Package [] result = BackendQuery.ReadResults (true, "Ok", null, () => empty);
+
+        Assert.Same (empty, result);
+        Assert.Empty (result);
+    }
+
+    [Fact]
     public async Task Gate_AllowsOnlyOneOwner_AndReleasesAfterThrow ()
     {
         BoundedAsyncGate gate = new (4);

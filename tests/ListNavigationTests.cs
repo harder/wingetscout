@@ -269,6 +269,42 @@ public sealed class ListNavigationTests
         Assert.Equal ("failure during shutdown", failure.Message);
     }
 
+    [Theory]
+    [InlineData ("default")]
+    [InlineData ("unrelated")]
+    [InlineData ("request")]
+    public async Task AwaitableDispatchOnlySuppressesItsOwnCancellationAfterShutdownStarts (string tokenKind)
+    {
+        using UiSession ui = new (AppMode.Installed, 1);
+        using CancellationTokenSource unrelated = new ();
+        unrelated.Cancel ();
+        CancellationToken thrownToken = default;
+        Task pending = ui.Dispatch (requestToken =>
+        {
+            ui.Invoke ("BeginShutdown");
+            thrownToken = tokenKind switch
+            {
+                "request" => requestToken,
+                "unrelated" => unrelated.Token,
+                _ => default
+            };
+            throw new OperationCanceledException ("cancellation during shutdown", thrownToken);
+        }, CancellationToken.None);
+
+        ui.PumpUntil (() => pending.IsCompleted);
+
+        if (tokenKind == "request")
+        {
+            await pending;
+        }
+        else
+        {
+            OperationCanceledException failure = await Assert.ThrowsAsync<OperationCanceledException> (() => pending);
+            Assert.Equal ("cancellation during shutdown", failure.Message);
+            Assert.Equal (thrownToken, failure.CancellationToken);
+        }
+    }
+
     [Fact]
     public async Task AwaitableDispatchSettlesWhenFinalSessionEndsWithoutPumping ()
     {
@@ -403,7 +439,10 @@ public sealed class ListNavigationTests
             }
         }
 
-        public Task Dispatch (Action action, CancellationToken token, Func<bool>? isCurrent = null)
+        public Task Dispatch (Action action, CancellationToken token, Func<bool>? isCurrent = null) =>
+            Dispatch (_ => action (), token, isCurrent);
+
+        public Task Dispatch (Action<CancellationToken> action, CancellationToken token, Func<bool>? isCurrent = null)
         {
             // Queue from a worker as real backend completions do; keep the test's UI thread
             // available to cancel, supersede, or end the session before the queue is pumped.
@@ -418,7 +457,7 @@ public sealed class ListNavigationTests
                 try
                 {
                     pending = (Task)typeof (App).GetMethod ("DispatchAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
-                        .Invoke (Window, [action, request.Token, isCurrent])!;
+                        .Invoke (Window, [new Action (() => action (request.Token)), request.Token, isCurrent])!;
                 }
                 finally { queued.Set (); }
                 await pending.ConfigureAwait (false);

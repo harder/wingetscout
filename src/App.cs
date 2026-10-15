@@ -499,7 +499,8 @@ public sealed partial class App : Window
                             action ();
                         }, requestToken).ConfigureAwait (false);
         }
-        catch (OperationCanceledException) when (!started || requestToken.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (!started
+            || requestToken.IsCancellationRequested && ex.CancellationToken == requestToken)
         {
             // Request/lifetime cancellation or Terminal.Gui ending its final session.
         }

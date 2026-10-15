@@ -66,3 +66,19 @@ public interface IInstalledVersionLookup
 {
     Task<string?> FindInstalledVersionAsync (string id, CancellationToken ct);
 }
+
+/// <summary>Rejects failed backend queries before reading their possibly empty results.</summary>
+internal static class BackendQuery
+{
+    internal static T ReadResults<T> (bool succeeded, string status, Exception? error, Func<T> readResults)
+    {
+        if (!succeeded)
+        {
+            throw new InvalidOperationException (
+                $"Package query failed: {status} (hr 0x{unchecked ((uint)(error?.HResult ?? 0)):X8})",
+                error);
+        }
+
+        return readResults ();
+    }
+}
