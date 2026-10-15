@@ -46,6 +46,12 @@ beside the executable; the MSIX Identity build needs package identity and
 `Microsoft.Management.Deployment.winmd`. A framework-dependent run or a mock
 smoke test does not validate either published activation path.
 
+Run `wingetscout.exe --comsmoke` from that folder for read-only COM inventory,
+search, details, versions, and installer-preview checks. This diagnostic uses COM
+directly, returns nonzero on failure, and does not fall back to the CLI. It does
+not validate package installation or removal. Both diagnostics can also run from
+an installed Identity MSIX to check its activation path.
+
 ## Filing issues
 
 - **Bugs**: include the failing scenario, OS + architecture (x64 vs arm64), and where possible a `--dump` trace (e.g. `wingetscout --dump search vscode > dump.txt`).

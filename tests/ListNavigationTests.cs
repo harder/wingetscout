@@ -210,23 +210,109 @@ public sealed class ListNavigationTests
         using UiSession ui = new (AppMode.Installed, 1);
         int calls = 0;
         using CancellationTokenSource request = new ();
-        Task<bool> cancelled = ui.Dispatch (() => calls++, request.Token);
+        Task cancelled = ui.Dispatch (() => calls++, request.Token);
         request.Cancel ();
-        ui.Application.TimedEvents!.RunTimers ();
-        Assert.False (await cancelled);
+        ui.Pump ();
+        await cancelled;
         Assert.Equal (0, calls);
 
         bool current = true;
-        Task<bool> superseded = ui.Dispatch (() => calls++, CancellationToken.None, () => current);
+        Task superseded = ui.Dispatch (() => calls++, CancellationToken.None, () => current);
         current = false;
-        ui.Application.TimedEvents!.RunTimers ();
-        Assert.False (await superseded);
+        ui.Pump ();
+        await superseded;
         Assert.Equal (0, calls);
 
-        Task<bool> disposed = ui.Dispatch (() => calls++, CancellationToken.None);
+        Task disposed = ui.Dispatch (() => calls++, CancellationToken.None);
         ui.Window.Dispose ();
-        ui.Application.TimedEvents!.RunTimers ();
-        Assert.False (await disposed);
+        // Lifetime-linked request cancellation must settle this without pumping the UI.
+        await disposed.WaitAsync (TimeSpan.FromSeconds (3), TestContext.Current.CancellationToken);
+        ui.Pump ();
+        Assert.Equal (0, calls);
+    }
+
+    [Fact]
+    public async Task AwaitableDispatchRunsDuringModalAndPropagatesFailures ()
+    {
+        using UiSession ui = new (AppMode.Installed, 1);
+        using Runnable modal = new ();
+        SessionToken nested = ui.Application.Begin (modal)!;
+        int callbackThread = 0;
+        Task pending = ui.Dispatch (() => callbackThread = Environment.CurrentManagedThreadId, CancellationToken.None);
+        ui.PumpUntil (() => pending.IsCompleted);
+        await pending;
+        Assert.Equal (Environment.CurrentManagedThreadId, callbackThread);
+        ui.Application.End (nested);
+
+        Task failed = ui.Dispatch (() => throw new InvalidOperationException ("dispatch failure"), CancellationToken.None);
+        ui.PumpUntil (() => failed.IsCompleted);
+        Assert.Equal ("dispatch failure", (await Assert.ThrowsAsync<InvalidOperationException> (() => failed)).Message);
+
+        Task unrelatedCancellation = ui.Dispatch (() => throw new OperationCanceledException ("action failure"), CancellationToken.None);
+        ui.PumpUntil (() => unrelatedCancellation.IsCompleted);
+        Assert.Equal ("action failure", (await Assert.ThrowsAsync<OperationCanceledException> (() => unrelatedCancellation)).Message);
+    }
+
+    [Fact]
+    public async Task AwaitableDispatchPreservesActionFailureAfterShutdownStarts ()
+    {
+        using UiSession ui = new (AppMode.Installed, 1);
+        Task pending = ui.Dispatch (() =>
+        {
+            ui.Invoke ("BeginShutdown");
+            throw new InvalidOperationException ("failure during shutdown");
+        }, CancellationToken.None);
+
+        ui.PumpUntil (() => pending.IsCompleted);
+
+        InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException> (() => pending);
+        Assert.Equal ("failure during shutdown", failure.Message);
+    }
+
+    [Theory]
+    [InlineData ("default")]
+    [InlineData ("unrelated")]
+    [InlineData ("request")]
+    public async Task AwaitableDispatchOnlySuppressesItsOwnCancellationAfterShutdownStarts (string tokenKind)
+    {
+        using UiSession ui = new (AppMode.Installed, 1);
+        using CancellationTokenSource unrelated = new ();
+        unrelated.Cancel ();
+        CancellationToken thrownToken = default;
+        Task pending = ui.Dispatch (requestToken =>
+        {
+            ui.Invoke ("BeginShutdown");
+            thrownToken = tokenKind switch
+            {
+                "request" => requestToken,
+                "unrelated" => unrelated.Token,
+                _ => default
+            };
+            throw new OperationCanceledException ("cancellation during shutdown", thrownToken);
+        }, CancellationToken.None);
+
+        ui.PumpUntil (() => pending.IsCompleted);
+
+        if (tokenKind == "request")
+        {
+            await pending;
+        }
+        else
+        {
+            OperationCanceledException failure = await Assert.ThrowsAsync<OperationCanceledException> (() => pending);
+            Assert.Equal ("cancellation during shutdown", failure.Message);
+            Assert.Equal (thrownToken, failure.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task AwaitableDispatchSettlesWhenFinalSessionEndsWithoutPumping ()
+    {
+        using UiSession ui = new (AppMode.Installed, 1);
+        int calls = 0;
+        Task pending = ui.Dispatch (() => calls++, CancellationToken.None);
+        ui.Application.End (ui.Application.SessionStack!.Single ());
+        await pending.WaitAsync (TimeSpan.FromSeconds (3), TestContext.Current.CancellationToken);
         Assert.Equal (0, calls);
     }
 
@@ -310,9 +396,9 @@ public sealed class ListNavigationTests
             State.Mode = mode;
             SetRows (count);
             _session = Application.Begin (Window)!;
-            // Invoke checks this public flag before queuing through TimedEvents. No OS
-            // driver is needed when the tests pump that queue explicitly on the UI thread.
+            // No OS driver is needed when tests pump dispatch and timers on this thread.
             Application.Initialized = true;
+            SetUiThread ();
             Application.LayoutAndDraw ();
             Table.SetFocus ();
         }
@@ -353,22 +439,57 @@ public sealed class ListNavigationTests
             }
         }
 
-        public Task<bool> Dispatch (Action action, CancellationToken token, Func<bool>? isCurrent = null) =>
-            (Task<bool>)typeof (App).GetMethod ("DispatchAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke (Window, [action, token, isCurrent])!;
+        public Task Dispatch (Action action, CancellationToken token, Func<bool>? isCurrent = null) =>
+            Dispatch (_ => action (), token, isCurrent);
+
+        public Task Dispatch (Action<CancellationToken> action, CancellationToken token, Func<bool>? isCurrent = null)
+        {
+            // Queue from a worker as real backend completions do; keep the test's UI thread
+            // available to cancel, supersede, or end the session before the queue is pumped.
+            SetUiThread ();
+            using ManualResetEventSlim queued = new ();
+            CancellationToken lifetimeToken = Get<BackgroundTaskTracker> ("_background").LifetimeToken;
+            Task result = Task.Run (async () =>
+            {
+                // Production requests are linked when created, before calling DispatchAsync.
+                using CancellationTokenSource request = CancellationTokenSource.CreateLinkedTokenSource (lifetimeToken, token);
+                Task pending;
+                try
+                {
+                    pending = (Task)typeof (App).GetMethod ("DispatchAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke (Window, [new Action (() => action (request.Token)), request.Token, isCurrent])!;
+                }
+                finally { queued.Set (); }
+                await pending.ConfigureAwait (false);
+            });
+            Assert.True (queued.Wait (TimeSpan.FromSeconds (3)));
+            return result;
+        }
+
+        public void Pump ()
+        {
+            SetUiThread ();
+            // Driverless equivalent of ApplicationMainLoop's dispatch pass.
+            Application.GetType ().GetMethod ("DrainDispatches", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke (Application, null);
+            Application.TimedEvents!.RunTimers ();
+            Application.LayoutAndDraw ();
+        }
 
         public void PumpUntil (Func<bool> complete)
         {
             System.Diagnostics.Stopwatch deadline = System.Diagnostics.Stopwatch.StartNew ();
             while (!complete () && deadline.Elapsed < TimeSpan.FromSeconds (3))
             {
-                Application.TimedEvents!.RunTimers ();
-                Application.LayoutAndDraw ();
+                Pump ();
                 Thread.Sleep (1);
             }
             Assert.True (complete (), "UI work did not complete within three seconds");
             Assert.Empty (Window.BackgroundFailures);
         }
+
+        private void SetUiThread () => Application.GetType ().GetProperty ("MainThreadId")!
+            .SetValue (Application, Environment.CurrentManagedThreadId);
 
         public T Get<T> (string name) => (T)Field (name).GetValue (Window)!;
         private static FieldInfo Field (string name) => typeof (App).GetField (name, BindingFlags.Instance | BindingFlags.NonPublic)!;

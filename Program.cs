@@ -138,6 +138,41 @@ if (args.Length > 0 && args [0] is "--dump")
 }
 
 #if WINGET_COM
+// Read-only published-backend check. Deliberately construct COM directly so a
+// fallback cannot turn failed COM validation into a successful CLI smoke test.
+if (args.Length > 0 && args [0] == "--comsmoke")
+{
+    using CancellationTokenSource deadline = new (TimeSpan.FromMinutes (2));
+    CancellationToken ct = deadline.Token;
+    try
+    {
+        ComBackend probe = new ();
+        Console.WriteLine (await probe.DescribeAsync (ct));
+        IReadOnlyList<string> sources = await probe.ListSourcesAsync (ct);
+        if (sources.Count == 0) throw new InvalidOperationException ("No COM sources were returned.");
+        Console.WriteLine ($"sources: {string.Join (", ", sources)}");
+        Console.WriteLine ($"installed: {(await probe.ListInstalledAsync ("winget", ct)).Count}");
+        Console.WriteLine ($"upgrades: {(await probe.ListUpgradesAsync ("winget", ct)).Count}");
+        IReadOnlyList<Package> matches = await probe.SearchAsync ("Microsoft.PowerToys", "winget", ct);
+        Package match = matches.FirstOrDefault (p => p.Id.Equals ("Microsoft.PowerToys", StringComparison.OrdinalIgnoreCase))
+                        ?? throw new InvalidOperationException ("COM search did not return Microsoft.PowerToys.");
+        PackageDetail detail = await probe.ShowAsync (match.Id, ct)
+                               ?? throw new InvalidOperationException ("COM details were unavailable.");
+        IReadOnlyList<string> versions = await probe.ListVersionsAsync (match.Id, ct);
+        if (versions.Count == 0) throw new InvalidOperationException ("COM package versions were unavailable.");
+        InstallerPreview preview = await probe.GetInstallerPreviewAsync (match.Id, null, null, ct)
+                                   ?? throw new InvalidOperationException ("COM installer preview was unavailable.");
+        Console.WriteLine ($"search/details/versions/preview: {detail.Id}, {versions.Count} versions, {preview}");
+        Console.WriteLine ("Read-only COM smoke passed.");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine ($"Read-only COM smoke failed: {ex}");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 // Apartment + COM-activation probe. This is the decisive "is the COM server actually reachable?"
 // diagnostic — run it as the FIRST COM activity after a clean reboot to separate a genuine
 // AOT-activation bug from a wedged WinGet OOP server (both surface as 0x80073D54
@@ -156,6 +191,7 @@ if (args.Length > 0 && args [0] is "--comdiag")
     catch (Exception ex)
     {
         Console.WriteLine ($"main-thread activation FAILED: 0x{(uint) ex.HResult:X8} {ex.Message}");
+        Environment.ExitCode = 1;
     }
 
     await Task.Run (() =>
@@ -170,6 +206,7 @@ if (args.Length > 0 && args [0] is "--comdiag")
                         catch (Exception ex)
                         {
                             Console.WriteLine ($"threadpool activation FAILED: 0x{(uint) ex.HResult:X8} {ex.Message}");
+                            Environment.ExitCode = 1;
                         }
                     });
 

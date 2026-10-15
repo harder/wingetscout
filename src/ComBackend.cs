@@ -130,7 +130,7 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         List<Package> packages = [];
         CharacterBudget characters = new (BackendLimits.PackageResultCharacters);
 
-        foreach (MatchResult m in Materialize (result.Matches, BackendLimits.SearchMatches, ct))
+        foreach (MatchResult m in ReadMatches (result, BackendLimits.SearchMatches, ct))
         {
             ct.ThrowIfCancellationRequested ();
             try
@@ -263,7 +263,7 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         List<Package> packages = [];
         CharacterBudget characters = new (BackendLimits.PackageResultCharacters);
 
-        foreach (MatchResult m in Materialize (result.Matches, BackendLimits.LocalMatches, ct))
+        foreach (MatchResult m in ReadMatches (result, BackendLimits.LocalMatches, ct))
         {
             ct.ThrowIfCancellationRequested ();
             try
@@ -1485,7 +1485,7 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         });
 
         FindPackagesResult result = await catalog.FindPackagesAsync (opts).AsTask (ct);
-        List<MatchResult> matches = Materialize (result.Matches, 1, ct);
+        List<MatchResult> matches = ReadMatches (result, 1, ct);
 
         return matches.Count > 0 ? matches [0].CatalogPackage : null;
     }
@@ -1630,6 +1630,17 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
     // ------------------------------------------------------------------------
     // Small helpers
     // ------------------------------------------------------------------------
+
+    private static List<MatchResult> ReadMatches (FindPackagesResult result, int maximum, CancellationToken ct)
+    {
+        FindPackagesResultStatus status = result.Status;
+
+        return BackendQuery.ReadResults (
+            status == FindPackagesResultStatus.Ok,
+            status.ToString (),
+            status == FindPackagesResultStatus.Ok ? null : result.ExtendedErrorCode,
+            () => Materialize (result.Matches, maximum, ct));
+    }
 
     /// <summary>
     /// Copy a WinRT-projected list into a managed <see cref="List{T}"/> using indexed access.

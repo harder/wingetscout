@@ -461,9 +461,10 @@ public sealed partial class App : Window
 
     /// <summary>
     /// Queues a UI callback only while both the application lifetime and request are current.
-    /// Cancellation settles the returned task even if Terminal.Gui never runs its queued timeout.
+    /// Terminal.Gui owns queue completion, including cancellation when its final session ends.
+    /// Callers pass the application lifetime token or a request token already linked to it.
     /// </summary>
-    private async Task<bool> DispatchAsync (
+    private async Task DispatchAsync (
         Action action,
         CancellationToken requestToken,
         Func<bool>? isCurrent = null)
@@ -480,44 +481,33 @@ public sealed partial class App : Window
 
         if (!CanQueue () || App is not { } app)
         {
-            return false;
+            return;
         }
 
-        TaskCompletionSource<bool> completion = new (TaskCreationOptions.RunContinuationsAsynchronously);
-        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource (
-            _background.LifetimeToken,
-            requestToken);
-        using CancellationTokenRegistration registration = cancellation.Token.Register (
-            () => completion.TrySetResult (false));
+        bool started = false;
 
         try
         {
-            app.Invoke (() =>
+            await app.InvokeAsync (() =>
                         {
                             if (!CanExecute ())
                             {
-                                completion.TrySetResult (false);
-
                                 return;
                             }
 
-                            try
-                            {
-                                action ();
-                                completion.TrySetResult (true);
-                            }
-                            catch (Exception ex)
-                            {
-                                completion.TrySetException (ex);
-                            }
-                        });
+                            started = true;
+                            action ();
+                        }, requestToken).ConfigureAwait (false);
         }
-        catch (Exception) when (!CanQueue ())
+        catch (OperationCanceledException ex) when (!started
+            || requestToken.IsCancellationRequested && ex.CancellationToken == requestToken)
         {
-            completion.TrySetResult (false);
+            // Request/lifetime cancellation or Terminal.Gui ending its final session.
         }
-
-        return await completion.Task.ConfigureAwait (false);
+        catch (Exception) when (!started && !CanQueue ())
+        {
+            // A concurrent shutdown can close dispatch admission before InvokeAsync starts.
+        }
     }
 
     internal static bool UiCallbackCanRun (
