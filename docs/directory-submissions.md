@@ -1,6 +1,6 @@
 # Other places to list Scout for WinGet
 
-This page contains the submission copy and steps for Scout for WinGet 1.0.2. Use the current release and update any version-specific links before a later submission. The WinGet community package PR has been submitted, but the package is not available from the community source until that PR is merged and indexed.
+This page contains the submission copy and steps for Scout for WinGet 1.0.3. Use the current release and update any version-specific links before a later submission. The WinGet community package PR has been submitted, but the package is not available from the community source until that PR is merged and indexed.
 
 ## 1. Scoop
 
@@ -27,7 +27,7 @@ When eligible:
 
 1. Search [Extras issues](https://github.com/ScoopInstaller/Extras/issues) and [pull requests](https://github.com/ScoopInstaller/Extras/pulls) for `wingetscout`.
 2. Open an Extras [package request](https://github.com/ScoopInstaller/Extras/issues/new/choose) and fill the fields with the name, short description, homepage, both release ZIP links, and genuine popularity evidence. Do not claim stars or forks that the repository lacks.
-3. Wait for a maintainer's response. Fork `ScoopInstaller/Extras`, put `wingetscout.json` in its `bucket/` directory, and open a PR titled `wingetscout: Add version 1.0.2`.
+3. Wait for a maintainer's response. Fork `ScoopInstaller/Extras`, put `wingetscout.json` in its `bucket/` directory, and open a PR titled `wingetscout: Add version 1.0.3`.
 4. Run the install/uninstall test above against the manifest in that fork. After opening the PR, comment `/verify` to start Scoop's manifest verifier, then address any review feedback.
 
 Copy for the package request:
@@ -35,8 +35,8 @@ Copy for the package request:
 > **Name:** Scout for WinGet (`wingetscout`)<br>
 > **Description:** Interactive Windows terminal app for searching, inspecting, installing, and updating WinGet packages. It also supports pins, saved package sets, run history, and scheduled update checks.<br>
 > **Homepage:** https://wingetscout.com/<br>
-> **x64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.0.2/wingetscout-1.0.2-win-x64.zip<br>
-> **ARM64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.0.2/wingetscout-1.0.2-win-arm64.zip<br>
+> **x64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.0.3/wingetscout-1.0.3-win-x64.zip<br>
+> **ARM64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.0.3/wingetscout-1.0.3-win-arm64.zip<br>
 > **Source:** https://github.com/harder/wingetscout<br>
 > **Popularity/repute:** Add verifiable usage, reviews, stars, or forks when eligible.
 
