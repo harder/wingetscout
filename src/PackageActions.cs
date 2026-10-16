@@ -45,7 +45,8 @@ public static class PackageActions
             if (exact) actions.Add (new ("download", "Download installer…"));
             if (mode is AppMode.Search or AppMode.Upgrades)
                 actions.Add (new ("select", "Toggle selection"));
-            if (detail?.Id.Equals (package.Id, StringComparison.OrdinalIgnoreCase) == true)
+            if (detail?.Id.Equals (package.Id, StringComparison.OrdinalIgnoreCase) == true
+                && detail.Source.Equals (package.Source, StringComparison.OrdinalIgnoreCase))
             {
                 if (!string.IsNullOrWhiteSpace (detail.Homepage)) actions.Add (new ("homepage", "Open homepage"));
                 if (!string.IsNullOrWhiteSpace (detail.ReleaseNotesUrl)) actions.Add (new ("changelog", "Open release notes"));

@@ -107,6 +107,41 @@ public sealed class WorkflowUiTests
     }
 
     [Theory]
+    [InlineData ("winget", true)]
+    [InlineData ("msstore", false)]
+    public void ContextMenuOnlyOffersCachedLinksFromTheHighlightedSource (string source, bool expected)
+    {
+        List<string> opened = [];
+        using ListNavigationTests.UiSession ui = new (AppMode.Search, 1,
+            urlLauncher: psi => { opened.Add (psi.FileName); return null; });
+        Package package = ui.State.Packages [0];
+        ui.State.CacheDetail (package.Id, new ()
+        {
+            Id = package.Id, Name = package.Name, Source = "winget",
+            Homepage = "https://example.invalid/home", ReleaseNotesUrl = "https://example.invalid/releases"
+        });
+        ui.State.Packages = [new () { Id = package.Id, Name = package.Name, Source = source }];
+        ui.State.ApplyFilter (); ui.Invoke ("RefreshTable"); ui.Invoke ("OnSelectedRowChanged");
+        Assert.Equal (package.Id, ui.State.CurrentDetail?.Id);
+        Assert.Equal ("winget", ui.State.CurrentDetail?.Source);
+        bool sawMenu = false;
+        ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+        {
+            PackageActionDialog menu = Assert.IsType<PackageActionDialog> (ui.Application.TopRunnable);
+            ListView rows = Assert.Single (menu.SubViews.OfType<ListView> ());
+            string [] labels = rows.Source!.ToList ().Cast<string> ().ToArray ();
+            Assert.Equal (expected, labels.Contains ("Open homepage"));
+            Assert.Equal (expected, labels.Contains ("Open release notes"));
+            sawMenu = true;
+            ui.Press (KeyCode.Esc);
+            return false;
+        });
+        ui.Press (new Key ('m'));
+        Assert.True (sawMenu);
+        Assert.Empty (opened);
+    }
+
+    [Theory]
     [InlineData ("homepage", "Open homepage", "https://example.invalid/selected/home")]
     [InlineData ("changelog", "Open release notes", "https://example.invalid/selected/releases")]
     public void MenuLinksKeepTheirDestinationWhenDelayedRefreshSelectsAnotherRow (string action, string label, string expected)

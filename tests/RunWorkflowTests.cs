@@ -319,6 +319,26 @@ public sealed class RunWorkflowTests
             ListCounts.Capture ([], 10, ["a", "b", "c"]).Label);
     }
 
+    [Theory]
+    [InlineData ("EXAMPLE.TOOL", "WINGET", true)]
+    [InlineData ("Other.Tool", "winget", false)]
+    [InlineData ("Example.Tool", "msstore", false)]
+    [InlineData ("Example.Tool", "", false)]
+    public void ContextLinksRequireMatchingPackageIdAndSource (string id, string source, bool expected)
+    {
+        Package package = new () { Id = "Example.Tool", Name = "Tool", Source = "winget" };
+        PackageDetail detail = new ()
+        {
+            Id = id, Name = "Tool", Source = source,
+            Homepage = "https://example.invalid/home", ReleaseNotesUrl = "https://example.invalid/releases"
+        };
+        string [] actions = PackageActions.For (AppMode.Search, package, true, false, false, 0, detail)
+            .Select (action => action.Id).ToArray ();
+        Assert.Equal (expected, actions.Contains ("homepage"));
+        Assert.Equal (expected, actions.Contains ("changelog"));
+        Assert.Contains ("install", actions);
+    }
+
     [Fact]
     public void ContextActions_RespectModeCapabilitiesPinsAndEmptyLists ()
     {
