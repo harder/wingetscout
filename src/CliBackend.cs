@@ -129,10 +129,10 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     // capture as a whole rather than scrape. The COM backend is the one that reports progress.
     public async Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
     {
-        (int code, string output) = await RunWithCodeAsync (InstallArgs (id, version, settings, source), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (InstallArgs (id, version, settings, source), ct);
         Operation op = new () { Kind = OperationKind.Install, PackageId = id, Version = version };
 
-        return CliResult (op, code, output);
+        return CliResult (op, result);
     }
 
     public async Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct)
@@ -152,57 +152,87 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
             return new () { Operation = op, Success = false, Message = $"Could not prepare download folder '{dir}': {ex.Message}" };
         }
 
-        (int code, string output) = await RunWithCodeAsync (DownloadArgs (id, version, dir), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (DownloadArgs (id, version, dir), ct);
 
-        return CliResult (op, code, output, code == 0 ? $"Downloaded to {dir}" : null);
+        return CliResult (op, result, result.Code == 0 ? $"Downloaded to {dir}" : null);
     }
 
     public async Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct)
     {
-        (int code, string output) = await RunWithCodeAsync (UninstallArgs (id), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (UninstallArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Uninstall, PackageId = id };
 
-        return CliResult (op, code, output);
+        return CliResult (op, result);
     }
 
     public async Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
     {
         // Try id (non-exact) first, then fall back to name (exact).
-        (int code, string output) = await RunWithCodeAsync (UpgradeByIdArgs (id, source), ct);
-        string diagnostics = $"ID lookup attempt · exit {code} (0x{code:X8})\n{DiagnosticText.Clean (output)}";
-
-        if (code != 0)
+        ProcessRunner.RunResult byId = await RunOperationCommandAsync (UpgradeByIdArgs (id, source), ct);
+        ProcessRunner.RunResult? byName = null;
+        if (byId.Code != 0)
         {
-            (code, output) = await RunWithCodeAsync (UpgradeByNameArgs (id, source), ct);
-            diagnostics += $"\n\nName lookup attempt · exit {code} (0x{code:X8})\n{DiagnosticText.Clean (output)}";
+            byName = await RunOperationCommandAsync (UpgradeByNameArgs (id, source), ct);
         }
 
         Operation op = new () { Kind = OperationKind.Upgrade, PackageId = id };
 
-        return CliResult (op, code, diagnostics, output);
+        return CliUpgradeResult (op, byId, byName);
     }
 
     public async Task<OpResult> PinAsync (string id, CancellationToken ct)
     {
-        (int code, string output) = await RunWithCodeAsync (PinAddArgs (id), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (PinAddArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Pin, PackageId = id };
 
-        return CliResult (op, code, output);
+        return CliResult (op, result);
     }
 
     public async Task<OpResult> UnpinAsync (string id, CancellationToken ct)
     {
-        (int code, string output) = await RunWithCodeAsync (PinRemoveArgs (id), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (PinRemoveArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Unpin, PackageId = id };
 
-        return CliResult (op, code, output);
+        return CliResult (op, result);
     }
 
-    internal static OpResult CliResult (Operation operation, int code, string output, string? message = null) => new ()
+    private static Task<ProcessRunner.RunResult> RunOperationCommandAsync (IReadOnlyList<string> args, CancellationToken ct) =>
+        RunDetailedWithCodeAsync (args, "winget", CommandTimeout (args), ct);
+
+    internal static OpResult CliResult (Operation operation, int code, string output, string? message = null) =>
+        CliResult (operation, new ProcessRunner.RunResult (code, output, false, false, false), message);
+
+    internal static OpResult CliResult (Operation operation, ProcessRunner.RunResult result, string? message = null, string? diagnostics = null) => new ()
     {
-        Operation = operation, Success = code == 0, Message = message ?? output,
-        Backend = "WinGet CLI", ExitCode = code, Diagnostics = DiagnosticText.Clean (output)
+        Operation = operation, Success = result.Code == 0, Message = message ?? result.Output,
+        Backend = "WinGet CLI", ExitCode = result.Code, Diagnostics = diagnostics ?? OperationDiagnostics (result, DiagnosticText.MaxCharacters)
     };
+
+    internal static OpResult CliUpgradeResult (Operation operation, ProcessRunner.RunResult byId, ProcessRunner.RunResult? byName)
+    {
+        string firstHeader = $"ID lookup attempt · exit {byId.Code} (0x{byId.Code:X8})\n";
+        int firstBudget = (byName is null ? DiagnosticText.MaxCharacters : DiagnosticText.MaxCharacters / 2) - firstHeader.Length;
+        string diagnostics = firstHeader + OperationDiagnostics (byId, firstBudget);
+        if (byName is { } second)
+        {
+            string secondHeader = $"\n\nName lookup attempt · exit {second.Code} (0x{second.Code:X8})\n";
+            diagnostics += secondHeader + OperationDiagnostics (second, DiagnosticText.MaxCharacters - diagnostics.Length - secondHeader.Length);
+        }
+        return CliResult (operation, byName ?? byId, diagnostics: diagnostics);
+    }
+
+    private static string OperationDiagnostics (ProcessRunner.RunResult result, int budget)
+    {
+        string stdout = result.StdoutDiagnostics ?? result.Output;
+        string stderr = result.StderrDiagnostics ?? string.Empty;
+        if (stderr.Length == 0) return DiagnosticText.Clean (stdout, budget);
+        if (stdout.Length == 0) return DiagnosticText.Clean (stderr, budget);
+        const string stdoutHeader = "Standard output:\n";
+        const string stderrHeader = "\n\nStandard error:\n";
+        int remaining = budget - stdoutHeader.Length - stderrHeader.Length;
+        return stdoutHeader + DiagnosticText.Clean (stdout, remaining / 2)
+            + stderrHeader + DiagnosticText.Clean (stderr, remaining - remaining / 2);
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     // CLI argument construction — extracted as static helpers so they're

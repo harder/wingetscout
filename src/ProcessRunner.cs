@@ -35,6 +35,8 @@ internal static class ProcessRunner
         bool CleanupIncomplete)
     {
         internal bool OutputComplete => !StdoutTruncated && !StderrTruncated && !CleanupIncomplete;
+        internal string? StdoutDiagnostics { get; init; }
+        internal string? StderrDiagnostics { get; init; }
     }
 
     private readonly record struct CapturedStream (string Text, bool Truncated);
@@ -393,12 +395,17 @@ internal static class ProcessRunner
 
     private static async Task<CapturedStream> DrainBoundedAsync (StreamReader reader, int maximumCharacters)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative (maximumCharacters);
         char [] buffer = ArrayPool<char>.Shared.Rent (8192);
 
         try
         {
-            StringBuilder retained = new (Math.Min (8192, maximumCharacters));
-            bool truncated = false;
+            int headCapacity = maximumCharacters / 2 + maximumCharacters % 2;
+            int tailCapacity = maximumCharacters - headCapacity;
+            StringBuilder retained = new (Math.Min (8192, headCapacity));
+            char []? tail = null;
+            int tailNext = 0, tailCount = 0;
+            long observed = 0;
 
             while (true)
             {
@@ -409,20 +416,31 @@ internal static class ProcessRunner
                     break;
                 }
 
-                int remaining = maximumCharacters - retained.Length;
-
-                if (remaining > 0)
+                observed += read;
+                int append = Math.Min (headCapacity - retained.Length, read);
+                retained.Append (buffer, 0, append);
+                int remaining = read - append;
+                if (remaining > 0 && tailCapacity > 0)
                 {
-                    int append = Math.Min (remaining, read);
-                    retained.Append (buffer, 0, append);
-                    truncated |= append < read;
-                }
-                else
-                {
-                    truncated = true;
+                    tail ??= new char [tailCapacity];
+                    if (remaining >= tailCapacity)
+                    {
+                        Array.Copy (buffer, read - tailCapacity, tail, 0, tailCapacity);
+                        tailNext = 0;
+                        tailCount = tailCapacity;
+                    }
+                    else
+                    {
+                        int first = Math.Min (remaining, tailCapacity - tailNext);
+                        Array.Copy (buffer, append, tail, tailNext, first);
+                        Array.Copy (buffer, append + first, tail, 0, remaining - first);
+                        tailNext = (tailNext + remaining) % tailCapacity;
+                        tailCount = Math.Min (tailCapacity, tailCount + remaining);
+                    }
                 }
             }
 
+            bool truncated = observed > maximumCharacters;
             if (truncated)
             {
                 // The character limit may land between the UTF-16 code units of a supplementary
@@ -433,6 +451,19 @@ internal static class ProcessRunner
                 }
 
                 retained.Append (TruncationMarker);
+            }
+
+            if (tail is not null && tailCount > 0)
+            {
+                int start = tailCount == tailCapacity ? tailNext : 0;
+                if (truncated && char.IsLowSurrogate (tail [start]))
+                {
+                    start = (start + 1) % tailCapacity;
+                    tailCount--;
+                }
+                int first = Math.Min (tailCount, tailCapacity - start);
+                retained.Append (tail, start, first);
+                retained.Append (tail, 0, tailCount - first);
             }
 
             return new (retained.ToString (), truncated);
@@ -503,7 +534,11 @@ internal static class ProcessRunner
             string.Concat (stdout.Text, stderr.Text),
             stdout.Truncated,
             stderr.Truncated,
-            cleanupIncomplete || !stdoutTask.IsCompletedSuccessfully || !stderrTask.IsCompletedSuccessfully);
+            cleanupIncomplete || !stdoutTask.IsCompletedSuccessfully || !stderrTask.IsCompletedSuccessfully)
+        {
+            StdoutDiagnostics = DiagnosticText.Clean (stdout.Text),
+            StderrDiagnostics = DiagnosticText.Clean (stderr.Text)
+        };
     }
 
     private static TimeSpan RemainingCleanupTime (long started, TimeSpan timeout)

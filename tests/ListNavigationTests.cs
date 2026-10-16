@@ -435,7 +435,8 @@ public sealed class ListNavigationTests
         public DetailPanel Detail { get; }
         private readonly SessionToken _session;
 
-        public UiSession (AppMode mode, int count, IBackend? backend = null, WorkflowStore? workflowStore = null)
+        public UiSession (AppMode mode, int count, IBackend? backend = null, WorkflowStore? workflowStore = null,
+            Func<System.Diagnostics.ProcessStartInfo, IDisposable?>? urlLauncher = null)
         {
             Theme.Register ();
             // Begin and Keyboard use the same event/command pipeline as a running app.
@@ -443,7 +444,7 @@ public sealed class ListNavigationTests
             Application = Terminal.Gui.App.Application.Create ();
             Application.GetType ().GetProperty ("Coordinator", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue (Application, new DriverlessLoop (this));
-            Window = new (backend ?? new MockBackend (), workflowStore: workflowStore) { Width = 140, Height = 32 };
+            Window = new (backend ?? new MockBackend (), workflowStore: workflowStore, urlLauncher: urlLauncher) { Width = 140, Height = 32 };
             Field ("_initialLoadDone").SetValue (Window, true);
             State = Get<AppState> ("_state");
             Table = Get<TableView> ("_packageTable");

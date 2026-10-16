@@ -110,6 +110,30 @@ public sealed class RunWorkflowTests
         Assert.Same (options, backend.LastSettings);
     }
 
+    [Theory]
+    [InlineData (OperationKind.Install)]
+    [InlineData (OperationKind.Download)]
+    public async Task RetryCatalogRequestSkipsRemovedSourceWithoutQueryingItAndKeepsOtherRequests (OperationKind kind)
+    {
+        RecordingBackend backend = new ()
+        {
+            SearchFailure = source => source == "removed" ? new InvalidOperationException ("Source was removed") : null
+        };
+        BatchPlan plan = await RetryPlanning.ReviewAsync (backend,
+            [Failed (kind) with { Source = "removed" }, Failed (kind)], CancellationToken.None);
+        Assert.Equal (2, plan.Items.Count);
+        Assert.False (plan.Items [0].CanRun);
+        Assert.Contains ("Source is unavailable", plan.Items [0].Reason);
+        Assert.True (plan.Items [1].CanRun);
+        Assert.DoesNotContain ("removed", backend.SearchSources);
+        Assert.Equal (0, backend.Mutations);
+
+        backend.SearchFailure = _ => new InvalidOperationException ("Catalog query failed");
+        await Assert.ThrowsAsync<InvalidOperationException> (() => RetryPlanning.ReviewAsync (backend,
+            [Failed (kind) with { Source = "removed" }, Failed (kind)], CancellationToken.None));
+        Assert.Equal (0, backend.Mutations);
+    }
+
     [Fact]
     public void CliShowNotFoundReturnsNoManifestButOtherFailuresRemainErrors ()
     {
@@ -327,12 +351,19 @@ public sealed class RunWorkflowTests
         public Exception? PinFailure { get; set; }
         public Exception? InstalledFailure { get; set; }
         public Func<string?, IReadOnlyList<string>>? Versions { get; set; }
+        public Func<string?, Exception?>? SearchFailure { get; set; }
+        public List<string?> SearchSources { get; } = [];
         public List<string?> VersionSources { get; } = [];
         public int Mutations { get; private set; }
         public string? LastSource { get; private set; }
         public string? LastVersion { get; private set; }
         public InstallSettings? LastSettings { get; private set; }
-        public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct) => Task.FromResult<IReadOnlyList<Package>> (Catalog.Where (p => source is null || p.Source == source).ToArray ());
+        public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct)
+        {
+            SearchSources.Add (source);
+            return SearchFailure?.Invoke (source) is { } failure ? Task.FromException<IReadOnlyList<Package>> (failure)
+                : Task.FromResult<IReadOnlyList<Package>> (Catalog.Where (p => source is null || p.Source == source).ToArray ());
+        }
         public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => InstalledFailure is null
             ? Task.FromResult (Installed) : Task.FromException<IReadOnlyList<Package>> (InstalledFailure);
         public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Task.FromResult (Catalog);

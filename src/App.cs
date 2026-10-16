@@ -62,8 +62,10 @@ public sealed partial class App : Window
     private AppMode? _mainLoadingMode;
     private readonly HashSet<AppMode> _loadedModes = [];
 
-    public App (IBackend backend, TimeSpan? smokeDelay = null, WorkflowStore? workflowStore = null)
+    public App (IBackend backend, TimeSpan? smokeDelay = null, WorkflowStore? workflowStore = null,
+        Func<ProcessStartInfo, IDisposable?>? urlLauncher = null)
     {
+        _urlLauncher = urlLauncher ?? (static psi => Process.Start (psi));
         _workflowStore = workflowStore ?? (backend is MockBackend
             ? new WorkflowStore (Path.Combine (new WorkflowStore ().Root, "Mock")) : new WorkflowStore ());
         _state = new (backend);
@@ -3143,7 +3145,7 @@ public sealed partial class App : Window
 
         try
         {
-            LaunchUrl (normalizedUrl, psi => Process.Start (psi));
+            LaunchUrl (normalizedUrl, _urlLauncher);
             SetStatus ($"Opened {normalizedUrl}");
         }
         catch (Exception ex)

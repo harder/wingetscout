@@ -3,6 +3,7 @@ namespace WinGetScout;
 public sealed partial class App
 {
     private readonly WorkflowStore _workflowStore;
+    private readonly Func<ProcessStartInfo, IDisposable?> _urlLauncher;
     private readonly Dictionary<string, Package> _searchSelected = new (StringComparer.OrdinalIgnoreCase);
     private UpdateCheckSnapshot? _lastCheck;
     private int _scheduleChangeActive;
@@ -333,9 +334,12 @@ public sealed partial class App
     {
         if (App is null || _state.InputMode != InputMode.Normal) return;
         Package? package = CurrentPackage ();
+        PackageDetail? detail = _state.CurrentDetail;
+        string? homepage = detail?.Homepage;
+        string? releaseNotes = detail?.ReleaseNotesUrl;
         ListCounts counts = CurrentCounts ();
         IReadOnlyList<PackageAction> actions = PackageActions.For (_state.Mode, package, _state.PinDataFresh,
-            _state.Backend.CanVerify, _state.Backend.CanRepair, counts.Selected, _state.CurrentDetail);
+            _state.Backend.CanVerify, _state.Backend.CanRepair, counts.Selected, detail);
         string? choice = null;
         bool shown = TryShowReservedModal (_foreground, () =>
         {
@@ -364,8 +368,8 @@ public sealed partial class App
                 if (_state.Mode == AppMode.Search) AskBatchInstall ();
                 else AskBatchUpgrade ();
                 break;
-            case "homepage": OpenUrl (_state.CurrentDetail?.Homepage); break;
-            case "changelog": OpenUrl (_state.CurrentDetail?.ReleaseNotesUrl); break;
+            case "homepage": OpenUrl (homepage); break;
+            case "changelog": OpenUrl (releaseNotes); break;
             case "history": ShowRunHistory (); break;
         }
     }

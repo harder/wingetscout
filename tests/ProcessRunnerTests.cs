@@ -547,6 +547,89 @@ public sealed class ProcessRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task OperationHistoryPreservesFinalStdoutAndStderrBeyondCaptureLimits ()
+    {
+        int stdoutCharacters = ProcessRunner.MaxCapturedStdoutCharacters + 8192;
+        int stderrCharacters = ProcessRunner.MaxCapturedStderrCharacters + 8192;
+        FakeCommand command = CreateScript ("operation-tail",
+            unix: $"printf 'stdout start\\n'; head -c {stdoutCharacters} /dev/zero | tr '\\0' A; printf '\\nFINAL STDOUT ERROR'; printf 'stderr start\\n' >&2; head -c {stderrCharacters} /dev/zero | tr '\\0' B >&2; printf '\\nFINAL STDERR ERROR' >&2; exit 7",
+            windows: $"[Console]::Out.Write('stdout start' + [Environment]::NewLine + ('A' * {stdoutCharacters}) + [Environment]::NewLine + 'FINAL STDOUT ERROR'); [Console]::Error.Write('stderr start' + [Environment]::NewLine + ('B' * {stderrCharacters}) + [Environment]::NewLine + 'FINAL STDERR ERROR'); exit 7");
+        ProcessRunner.RunResult result = await CliBackend.RunDetailedWithCodeAsync (
+            command.Arguments, command.Executable, TimeSpan.FromSeconds (30), TestContext.Current.CancellationToken);
+        Assert.False (result.OutputComplete);
+        Assert.True (result.StdoutTruncated);
+        Assert.True (result.StderrTruncated);
+        Assert.InRange (result.Output.Length, 1, ProcessRunner.MaxCombinedCapturedCharacters);
+        Assert.Contains ("FINAL STDOUT ERROR", result.Output);
+        Assert.Contains ("FINAL STDERR ERROR", result.Output);
+        Assert.Throws<BoundedOutputException> (() => CliBackend.VerifiedQueryOutput (result, "winget", ["list"]));
+        // Exercise the same detailed result used by live operation history, not just the raw pipe.
+        OpResult operation = CliBackend.CliResult (new () { Kind = OperationKind.Install }, result);
+        RunRecord record = RunRecord.SinglePackage (new () { Id = "Example.Tool", Name = "Tool", Source = "winget" },
+            OperationKind.Install, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, operation, false);
+        string diagnostics = Assert.Single (record.Items).Diagnostics!;
+        Assert.Contains ("stdout start", diagnostics);
+        Assert.Contains ("FINAL STDOUT ERROR", diagnostics);
+        Assert.Contains ("stderr start", diagnostics);
+        Assert.Contains ("FINAL STDERR ERROR", diagnostics);
+        Assert.True (diagnostics.Length <= DiagnosticText.MaxCharacters);
+    }
+
+    [Fact]
+    public void UpgradeDiagnosticsPreserveBothStreamsAcrossBothAttempts ()
+    {
+        ProcessRunner.RunResult Attempt (string label) => new (7, "Combined output", true, true, false)
+        {
+            StdoutDiagnostics = $"{label} stdout start\n" + new string ('A', DiagnosticText.MaxCharacters * 2) + $"\n{label} STDOUT FINAL ERROR",
+            StderrDiagnostics = $"{label} stderr start\n" + new string ('B', DiagnosticText.MaxCharacters * 2) + $"\n{label} STDERR FINAL ERROR"
+        };
+        OpResult result = CliBackend.CliUpgradeResult (new () { Kind = OperationKind.Upgrade }, Attempt ("ID"), Attempt ("Name"));
+        Assert.True (result.Diagnostics!.Length <= DiagnosticText.MaxCharacters);
+        foreach (string attempt in new [] { "ID", "Name" })
+        {
+            Assert.Contains ($"{attempt} stdout start", result.Diagnostics);
+            Assert.Contains ($"{attempt} STDOUT FINAL ERROR", result.Diagnostics);
+            Assert.Contains ($"{attempt} stderr start", result.Diagnostics);
+            Assert.Contains ($"{attempt} STDERR FINAL ERROR", result.Diagnostics);
+        }
+    }
+
+    [Theory]
+    [InlineData (0)]
+    [InlineData (1)]
+    [InlineData (4)]
+    [InlineData (5)]
+    [InlineData (6)]
+    [InlineData (31)]
+    [InlineData (10000)]
+    public async Task BoundedDrainKeepsValidUnicodeWithinBothCaptureBoundaries (int limit)
+    {
+        string input = "A😀" + new string ('x', 16390) + "🚀B";
+        using MemoryStream stream = new (Encoding.UTF8.GetBytes (input));
+        using StreamReader reader = new (stream, Encoding.UTF8);
+        (string text, bool truncated) = await ProcessRunner.DrainBoundedForTestAsync (reader, limit);
+        Assert.True (truncated);
+        Assert.True (text.Length <= limit + ProcessRunner.TruncationMarker.Length);
+        Assert.Contains (ProcessRunner.TruncationMarker, text);
+        if (limit >= 2) Assert.EndsWith ("B", text);
+        _ = new UTF8Encoding (false, true).GetBytes (text);
+    }
+
+    [Theory]
+    [InlineData ("", 0)]
+    [InlineData ("A", 1)]
+    [InlineData ("A😀B", 4)]
+    [InlineData ("A😀B", 5)]
+    public async Task BoundedDrainDoesNotChangeCompleteOutput (string input, int limit)
+    {
+        using MemoryStream stream = new (Encoding.UTF8.GetBytes (input));
+        using StreamReader reader = new (stream, Encoding.UTF8);
+        (string text, bool truncated) = await ProcessRunner.DrainBoundedForTestAsync (reader, limit);
+        Assert.False (truncated);
+        Assert.Equal (input, text);
+    }
+
+    [Fact]
     public async Task BoundedDrain_TruncationNeverRetainsHalfOfSurrogatePair ()
     {
         byte [] encoded = Encoding.UTF8.GetBytes ("A😀B");
@@ -556,7 +639,7 @@ public sealed class ProcessRunnerTests : IDisposable
         (string text, bool truncated) = await ProcessRunner.DrainBoundedForTestAsync (reader, maximumCharacters: 2);
 
         Assert.True (truncated);
-        Assert.Equal ($"A{ProcessRunner.TruncationMarker}", text);
+        Assert.Equal ($"A{ProcessRunner.TruncationMarker}B", text);
         Assert.DoesNotContain (text, char.IsSurrogate);
     }
 

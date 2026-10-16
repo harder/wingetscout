@@ -35,7 +35,7 @@ public static class RetryPlanning
         RunItem [] retryable = items.Where (x => x.CanRetry).ToArray ();
         IReadOnlyList<Package> installed = retryable.Any (x => x.Request!.Kind is OperationKind.Install or OperationKind.Uninstall or OperationKind.Repair)
             ? await backend.ListInstalledAsync (null, ct) : [];
-        IReadOnlyList<string> sources = retryable.Any (x => x.Request!.Kind == OperationKind.Install)
+        IReadOnlyList<string> sources = retryable.Any (x => x.Request!.Kind is OperationKind.Install or OperationKind.Download)
             ? await backend.ListSourcesAsync (ct) : [];
         bool upgradesNeeded = retryable.Any (x => x.Request!.Kind == OperationKind.Upgrade);
         IReadOnlyList<Package> upgrades = upgradesNeeded ? await backend.ListUpgradesAsync (null, ct) : [];
@@ -49,6 +49,12 @@ public static class RetryPlanning
             if (!item.CanRetry || request is null)
             {
                 plan.Add (new (original, false, "No safe retry request was recorded."));
+                continue;
+            }
+            if ((request.Kind is OperationKind.Install or OperationKind.Download)
+                && !sources.Contains (item.Source, StringComparer.OrdinalIgnoreCase))
+            {
+                plan.Add (new (original, false, "Source is unavailable. Refresh sources and try again.") { Request = request });
                 continue;
             }
             bool catalog = request.Kind is OperationKind.Install or OperationKind.Download;
@@ -99,8 +105,10 @@ public static class RetryPlanning
 public static class DiagnosticText
 {
     public const int MaxCharacters = 16_384;
-    public static string Clean (string text)
+    public static string Clean (string text, int maximumCharacters = MaxCharacters)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan (maximumCharacters, 64);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan (maximumCharacters, MaxCharacters);
         StringBuilder clean = new ();
         bool truncated = false;
         for (int i = 0; i < text.Length; i++)
@@ -125,16 +133,16 @@ public static class DiagnosticText
                 continue;
             }
             if (!char.IsControl (ch) || ch is '\n' or '\t') clean.Append (ch);
-            if (clean.Length >= MaxCharacters * 2)
+            if (clean.Length >= maximumCharacters * 2)
             {
-                clean.Remove (MaxCharacters / 2, MaxCharacters);
+                clean.Remove (maximumCharacters / 2, maximumCharacters);
                 truncated = true;
             }
         }
-        if (!truncated && clean.Length <= MaxCharacters) return clean.ToString ();
+        if (!truncated && clean.Length <= maximumCharacters) return clean.ToString ();
         const string marker = "\n… output truncated …\n";
-        int headLength = (MaxCharacters - marker.Length) / 2;
-        int tailStart = clean.Length - (MaxCharacters - marker.Length - headLength);
+        int headLength = (maximumCharacters - marker.Length) / 2;
+        int tailStart = clean.Length - (maximumCharacters - marker.Length - headLength);
         if (char.IsHighSurrogate (clean [headLength - 1])) headLength--;
         if (char.IsLowSurrogate (clean [tailStart])) tailStart++;
         return clean.ToString (0, headLength) + marker + clean.ToString (tailStart, clean.Length - tailStart);

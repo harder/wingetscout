@@ -107,6 +107,50 @@ public sealed class WorkflowUiTests
     }
 
     [Theory]
+    [InlineData ("homepage", "Open homepage", "https://example.invalid/selected/home")]
+    [InlineData ("changelog", "Open release notes", "https://example.invalid/selected/releases")]
+    public void MenuLinksKeepTheirDestinationWhenDelayedRefreshSelectsAnotherRow (string action, string label, string expected)
+    {
+        TaskCompletionSource<IReadOnlyList<Package>> refresh = new (TaskCreationOptions.RunContinuationsAsynchronously);
+        List<string> opened = [];
+        ListNavigationTests.NavigationBackend backend = new () { Load = (_, _) => refresh.Task };
+        using ListNavigationTests.UiSession ui = new (AppMode.Installed, 2, backend,
+            urlLauncher: psi => { opened.Add (psi.FileName); return null; });
+        Package [] packages = ui.State.Packages.ToArray ();
+        ui.State.CacheDetail (packages [0].Id, new () { Id = packages [0].Id, Name = "Original", Homepage = "https://example.invalid/other/home", ReleaseNotesUrl = "https://example.invalid/other/releases" });
+        ui.State.CacheDetail (packages [1].Id, new () { Id = packages [1].Id, Name = "Selected", Homepage = "https://example.invalid/selected/home", ReleaseNotesUrl = "https://example.invalid/selected/releases" });
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.Press (new Key ('r'));
+        ui.PumpUntil (() => backend.Sources.Count == 1);
+        ui.Press (KeyCode.CursorDown);
+        Assert.Equal (packages [1].Id, ui.State.CurrentDetail?.Id);
+        bool completedRefresh = false, choseLink = false;
+        System.Diagnostics.Stopwatch deadline = System.Diagnostics.Stopwatch.StartNew ();
+        ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+        {
+            if (deadline.Elapsed > TimeSpan.FromSeconds (5)) throw new TimeoutException ("Refresh did not complete during menu review.");
+            PackageActionDialog menu = Assert.IsType<PackageActionDialog> (ui.Application.TopRunnable);
+            ListView rows = Assert.Single (menu.SubViews.OfType<ListView> ());
+            Assert.Contains (label, rows.Source!.ToList ().Cast<string> ());
+            if (!completedRefresh)
+            {
+                completedRefresh = true;
+                refresh.SetResult (packages);
+                return true;
+            }
+            if (ui.State.CurrentDetail?.Id != packages [0].Id) return true;
+            choseLink = true;
+            menu.Result = action;
+            menu.RequestStop ();
+            return false;
+        });
+        ui.Press (new Key ('m'));
+        Assert.True (choseLink);
+        Assert.Equal (expected, Assert.Single (opened));
+        Assert.Equal (packages [0].Id, ui.State.CurrentDetail?.Id);
+    }
+
+    [Theory]
     [InlineData (false)]
     [InlineData (true)]
     public void ContextMenuCanBeCancelledWithoutExecutingAndIsBlockedByActiveOperation (bool shiftF10)
