@@ -1,6 +1,9 @@
 namespace WinGetScout;
 
-public sealed record BatchPlanItem (Package Package, bool CanRun, string Reason);
+public sealed record BatchPlanItem (Package Package, bool CanRun, string Reason)
+{
+    public RunRequest? Request { get; init; }
+}
 
 public sealed record BatchPlan (string Action, List<BatchPlanItem> Items)
 {
@@ -14,6 +17,28 @@ public static class BatchPlanning
 
     public static List<Package> SelectedPackages (IEnumerable<Package> packages, IReadOnlySet<string> keys) =>
         [.. packages.Where (p => keys.Contains (Key (p)))];
+
+    public static async Task<BatchPlan> ReviewUpgradesAsync (IBackend backend, IReadOnlySet<string> selected, CancellationToken ct)
+    {
+        IReadOnlyList<Package> current = await backend.ListUpgradesAsync (null, ct);
+        IReadOnlyDictionary<string, PinState> pins = await backend.ListPinsAsync (ct);
+        List<BatchPlanItem> items = [];
+        foreach (string key in selected)
+        {
+            Package? package = current.FirstOrDefault (p => Key (p).Equals (key, StringComparison.OrdinalIgnoreCase));
+            if (package is null)
+            {
+                int separator = key.IndexOf ('\u001f');
+                string id = separator < 0 ? key : key [(separator + 1)..];
+                items.Add (new (new () { Id = id, Name = id, Source = separator < 0 ? string.Empty : key [..separator] },
+                    false, "Package is no longer present in the current upgrade inventory."));
+                continue;
+            }
+            package.PinState = pins.FirstOrDefault (x => x.Key.Equals (package.Id, StringComparison.OrdinalIgnoreCase)).Value;
+            items.AddRange (ForUpgrades ([package], pinsFresh: true).Items);
+        }
+        return new ("Upgrade", items);
+    }
 
     /// <summary>Resolve saved entries concurrently while preserving their order in the review plan.</summary>
     public static async Task<List<Package>> ResolveUnresolvedAsync (

@@ -898,7 +898,8 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
             return Ok (op, $"Repaired {SimpleText (pkg.Name) ?? id}{(result.RebootRequired ? " (reboot required)" : string.Empty)}");
         }
 
-        return Fail (op, RepairFailureMessage (SimpleText (pkg.Name) ?? id, result));
+        return Fail (op, RepairFailureMessage (SimpleText (pkg.Name) ?? id, result),
+            $"Status: {result.Status}\nRepairer: {result.RepairerErrorCode} (0x{result.RepairerErrorCode:X8})\nHRESULT: 0x{HResultOf (result.ExtendedErrorCode):X8}");
     }
 
     // The COM API reports "this package can't be repaired" in two ways: as the dedicated
@@ -1725,9 +1726,11 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
     // (CsWinRT maps a failed HRESULT to its exception). Pull the numeric HRESULT back out.
     private static uint HResultOf (Exception? error) => (uint)(error?.HResult ?? 0);
 
-    private static OpResult Ok (Operation op, string message) => new () { Operation = op, Success = true, Message = message };
+    private static OpResult Ok (Operation op, string message) => new ()
+        { Operation = op, Success = true, Message = message, Backend = "WinGet COM", Diagnostics = message };
 
-    private static OpResult Fail (Operation op, string message) => new () { Operation = op, Success = false, Message = message };
+    private static OpResult Fail (Operation op, string message, string? diagnostics = null) => new ()
+        { Operation = op, Success = false, Message = message, Backend = "WinGet COM", Diagnostics = diagnostics ?? message };
 
     private static string? NullIfEmpty (string? value) => string.IsNullOrWhiteSpace (value) ? null : value;
 

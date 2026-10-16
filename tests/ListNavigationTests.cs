@@ -10,7 +10,7 @@ public sealed class TerminalUiCollection;
 public sealed class ListNavigationTests
 {
     public static IEnumerable<object []> DialogCases () =>
-        from kind in new [] { "versions", "sets", "history", "results", "plan" }
+        from kind in new [] { "versions", "sets", "history", "results", "plan", "actions" }
         from count in new [] { 0, 1, 60 }
         select new object [] { kind, count };
 
@@ -28,6 +28,7 @@ public sealed class ListNavigationTests
             "sets" => new SetManagerDialog (versions.Select (v => new PackageSet (v, [])).ToArray (), 0),
             "history" => new RunHistoryDialog (versions.Select (_ => record).ToArray ()),
             "results" => new RunRecordDialog (record),
+            "actions" => new PackageActionDialog ("Example", versions.Select (v => new PackageAction (v, v)).ToArray ()),
             _ => new BatchPlanDialog (new ("Install", versions.Select (v => new BatchPlanItem (
                 new () { Id = v, Name = v }, true, "Ready")).ToList ()))
         };
@@ -37,6 +38,7 @@ public sealed class ListNavigationTests
         try
         {
             ListView list = Assert.Single (dialog.SubViews.OfType<ListView> ());
+            if (kind is "plan" or "results" or "history" or "actions") Assert.Equal (count > 0 ? 0 : (int?)null, list.SelectedItem);
             if (count > 0) list.SetFocus ();
             foreach (KeyCode key in new [] { KeyCode.CursorDown, KeyCode.CursorUp, KeyCode.PageDown, KeyCode.PageUp })
             {
@@ -382,13 +384,15 @@ public sealed class ListNavigationTests
         public DetailPanel Detail { get; }
         private readonly SessionToken _session;
 
-        public UiSession (AppMode mode, int count, IBackend? backend = null)
+        public UiSession (AppMode mode, int count, IBackend? backend = null, WorkflowStore? workflowStore = null)
         {
             Theme.Register ();
             // Begin and Keyboard use the same event/command pipeline as a running app.
             // A driverless application keeps this test independent of the host's terminal.
             Application = Terminal.Gui.App.Application.Create ();
-            Window = new (backend ?? new MockBackend ()) { Width = 140, Height = 32 };
+            Application.GetType ().GetProperty ("Coordinator", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue (Application, new DriverlessLoop (this));
+            Window = new (backend ?? new MockBackend (), workflowStore: workflowStore) { Width = 140, Height = 32 };
             Field ("_initialLoadDone").SetValue (Window, true);
             State = Get<AppState> ("_state");
             Table = Get<TableView> ("_packageTable");
@@ -490,6 +494,14 @@ public sealed class ListNavigationTests
 
         private void SetUiThread () => Application.GetType ().GetProperty ("MainThreadId")!
             .SetValue (Application, Environment.CurrentManagedThreadId);
+
+        // Modal Run uses the same dispatch/timer pump as the surrounding driverless session.
+        private sealed class DriverlessLoop (UiSession session) : IMainLoopCoordinator
+        {
+            public Task StartInputTaskAsync (IApplication? app) => Task.CompletedTask;
+            public void Stop () { }
+            public void RunIteration () => session.Pump ();
+        }
 
         public T Get<T> (string name) => (T)Field (name).GetValue (Window)!;
         private static FieldInfo Field (string name) => typeof (App).GetField (name, BindingFlags.Instance | BindingFlags.NonPublic)!;

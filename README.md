@@ -66,11 +66,12 @@ The **Search**, **Installed**, and **Upgrades** tabs share a package list and de
 | `U` | Review and upgrade selected packages |
 | `g` | Save, load, or delete package sets in Search |
 | `C` | Open update-check settings in Upgrades |
-| `L` | View recent run results |
+| `L` | View recent runs, package diagnostics, and retry options |
+| `m` / `Shift+F10` | Open actions for the highlighted package and current selection |
 | `p` / `P` | Pin or unpin a package / cycle the pin filter |
 | `t` / `?` / `q` | Choose a theme / open help / quit |
 
-The status bar shows the shortcuts relevant to the current tab. Scout also supports mouse input, sorting, source filters, download-only and advanced installs, and direct homepage or changelog links.
+The status bar shows the shortcuts relevant to the current tab. Right-click a package row for its action menu. List headings show visible and total results in the current source/search, plus selections hidden by filtering or earlier searches. Selected plans include those hidden selections and always open for review before execution. Scout also supports sorting, source filters, download-only and advanced installs, and direct homepage or changelog links.
 
 See the [usage guide](https://github.com/harder/wingetscout/blob/main/docs/usage.md) for the full workflow and shortcut reference.
 
@@ -78,7 +79,7 @@ See the [usage guide](https://github.com/harder/wingetscout/blob/main/docs/usage
 
 In **Upgrades**, press `C` to run a check now or schedule one at a daily local time. A schedule creates a current-user Windows Task Scheduler task. The first successful check establishes a baseline; later checks can notify you about new or changed unpinned upgrades, or a failed check. Disable the schedule from the same dialog to remove the task. Windows notification settings still control whether toasts appear.
 
-Scout stores package sets, recent run results, check results, and schedule settings under `%LOCALAPPDATA%\WinGetScout`. These are local files. The `L` view shows the 20 most recent operation runs. A scheduled check reads package state; it does not install or upgrade anything.
+Scout stores package sets, recent run results, check results, and schedule settings under `%LOCALAPPDATA%\WinGetScout`. These are local files. The `L` view shows the 20 most recent operation runs, with per-package timing, source, versions, install options, and bounded diagnostic output. Failed or cancelled installs, upgrades, downloads, uninstalls, and repairs can be retried after fresh checks and an explicit review. Older history remains readable; entries without a recorded request cannot be retried. Mock sessions keep their data in the `Mock` subfolder. A scheduled check reads package state; it does not install or upgrade anything.
 
 ## Backends and capabilities
 

@@ -178,6 +178,7 @@ public sealed class StatusBar : View
     public int Tick { get; set; }
     public int InstallSelectionCount { get; set; }
     public int UpgradeSelectionCount { get; set; }
+    public int HiddenSelectionCount { get; set; }
 
     /// <summary>When set, a determinate progress bar replaces the spinner (install/upgrade/uninstall).</summary>
     public OpProgress? Op { get; set; }
@@ -187,9 +188,9 @@ public sealed class StatusBar : View
     private static readonly string [] _searchInputHints = ["Esc Close", "Enter Search", "Ctrl+U Clear", "←→ Tabs"];
     private static readonly string [] _filterInputHints = ["Esc Clear", "Enter Done", "Ctrl+U Clear", "Bksp Del", "←→ Tabs"];
     private static readonly string [] _versionInputHints = ["Esc Cancel", "Enter Confirm", "Ctrl+U Clear"];
-    private static readonly string [] _searchHints = ["/ Search", "f Source", "r Refresh", "Spc Select", "g Sets", "B Install sel", "L Runs", "←→ Tabs", "? Help", "q Quit"];
-    private static readonly string [] _installedHints = ["/ Filter", "f Source", "p Pin", "P Pins", "r Refresh", "L Runs", "←→ Tabs", "? Help", "q Quit"];
-    private static readonly string [] _upgradeHints = ["/ Filter", "f Source", "p Pin", "P Pins", "r Refresh", "Spc Select", "U Upgrade sel", "C Checks", "L Runs", "←→ Tabs", "? Help", "q Quit"];
+    private static readonly string [] _searchHints = ["/ Search", "f Source", "r Refresh", "Spc Select", "g Sets", "B Install sel", "L Runs", "m Actions", "←→ Tabs", "? Help", "q Quit"];
+    private static readonly string [] _installedHints = ["/ Filter", "f Source", "p Pin", "P Pins", "r Refresh", "L Runs", "m Actions", "←→ Tabs", "? Help", "q Quit"];
+    private static readonly string [] _upgradeHints = ["/ Filter", "f Source", "p Pin", "P Pins", "r Refresh", "Spc Select", "U Upgrade sel", "C Checks", "L Runs", "m Actions", "←→ Tabs", "? Help", "q Quit"];
 
     /// <summary>Render a compact fixed-width progress bar like <c>▕████░░░░░░▏  42%</c>.</summary>
     private static string RenderBar (double fraction)
@@ -245,9 +246,9 @@ public sealed class StatusBar : View
             x0 += pinLabel.Length + 1;
         }
 
-        string selection = Mode == AppMode.Upgrades && UpgradeSelectionCount > 0
-            ? $" {UpgradeSelectionCount} selected "
-            : InstallSelectionCount > 0 ? $" {InstallSelectionCount} queued " : string.Empty;
+        int selected = Mode == AppMode.Upgrades ? UpgradeSelectionCount : Mode == AppMode.Search ? InstallSelectionCount : 0;
+        string selection = selected > 0
+            ? $" {selected} selected{(HiddenSelectionCount > 0 ? $" ({HiddenSelectionCount} hidden)" : string.Empty)} " : string.Empty;
         if (selection.Length > 0 && x0 + selection.Length + 1 < Viewport.Width)
         {
             SetAttribute (new (Theme.TextOnAccent, Theme.Selection, TextStyle.Bold));
@@ -723,6 +724,7 @@ public sealed class HelpDialog : Runnable
           r             Refresh
 
         Actions
+          m / Shift+F10 Contextual action menu
           i             Install
           I             Install specific version (COM list, CLI version entry)
           A             Advanced install (scope / mode / arch / args)
@@ -738,7 +740,7 @@ public sealed class HelpDialog : Runnable
           U             Batch upgrade selected
           g             Save / load / delete package sets (Search)
           C             Scheduled update checks (Upgrades)
-          L             Recent run results
+          L             Recent runs, diagnostics, and reviewed retries
           e             Export visible list to CSV
           P             Cycle pin filter
           S             Cycle sort field (↑/↓; Available on Upgrades)
@@ -748,6 +750,7 @@ public sealed class HelpDialog : Runnable
         Mouse
           Click tab to switch view
           Click row to select
+          Right-click row for actions
           Scroll wheel to navigate
 
         General

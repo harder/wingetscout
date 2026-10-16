@@ -62,8 +62,10 @@ public sealed partial class App : Window
     private AppMode? _mainLoadingMode;
     private readonly HashSet<AppMode> _loadedModes = [];
 
-    public App (IBackend backend, TimeSpan? smokeDelay = null)
+    public App (IBackend backend, TimeSpan? smokeDelay = null, WorkflowStore? workflowStore = null)
     {
+        _workflowStore = workflowStore ?? (backend is MockBackend
+            ? new WorkflowStore (Path.Combine (new WorkflowStore ().Root, "Mock")) : new WorkflowStore ());
         _state = new (backend);
         _lastCheck = _workflowStore.LatestCheck ();
         _smokeDelay = smokeDelay;
@@ -206,6 +208,7 @@ public sealed partial class App : Window
 
         _packageTable.ValueChanged += (_, _) => OnSelectedRowChanged ();
         _packageTable.HeaderClicked += OnHeaderClicked;
+        _packageTable.ActionsRequested += ShowPackageActions;
 
         _filterInput.TextChanged += (_, _) =>
                                     {
@@ -810,7 +813,7 @@ public sealed partial class App : Window
                                                                               }
                                                                           }, ct, () => gen == _state.ViewGeneration);
                                                  }
-                                                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                                                 catch (OperationCanceledException ex) when (ct.IsCancellationRequested && ex.CancellationToken == ct)
                                                  {
                                                      // Superseded view or application shutdown.
                                                  }
@@ -985,12 +988,7 @@ public sealed partial class App : Window
 
     private void UpdateListTitle ()
     {
-        string title = _state.Mode switch
-        {
-            AppMode.Search => $" Search ({_state.Filtered.Count} • {_searchSelected.Count} selected) ",
-            AppMode.Upgrades => $" Upgrades ({_state.Filtered.Count} • {_state.BatchSelected.Count} selected) ",
-            _ => $" Installed ({_state.Filtered.Count}) "
-        };
+        string title = $" {_state.Mode} ({CurrentCounts ().Label}) ";
 
         if (_state.Mode != AppMode.Search && _state.PinFilter != PinFilter.All)
         {
@@ -1284,6 +1282,7 @@ public sealed partial class App : Window
         _statusBar.IsLoading = _state.Loading || _state.DetailLoading;
         _statusBar.InstallSelectionCount = _searchSelected.Count;
         _statusBar.UpgradeSelectionCount = _state.BatchSelected.Count;
+        _statusBar.HiddenSelectionCount = CurrentCounts ().HiddenSelected;
         _statusBar.Op = _state.OpProgress;
         _statusBar.SetNeedsDraw ();
         _detailPanel.Mode = _state.Mode;
@@ -1600,6 +1599,10 @@ public sealed partial class App : Window
 
         switch (key.KeyCode)
         {
+            case KeyCode.F10 | KeyCode.ShiftMask:
+                ShowPackageActions ();
+                key.Handled = true;
+                return;
             case KeyCode.Esc:
 
                 // While an operation is in flight, Esc cancels it. At top level, keep the
@@ -1693,6 +1696,10 @@ public sealed partial class App : Window
 
             switch (c)
             {
+                case 'm':
+                    ShowPackageActions ();
+                    key.Handled = true;
+                    return;
                 case 'j':
 
                     // Vim-style down. Forward to the table by simulating CursorDown.
@@ -2063,7 +2070,8 @@ public sealed partial class App : Window
                             p,
                             OperationKind.Install,
                             activity,
-                            (prog, ct) => _state.Backend.InstallAsync (p.Id, version, settings, prog, ct, p.Source));
+                            (prog, ct) => _state.Backend.InstallAsync (p.Id, version, settings, prog, ct, p.Source),
+                            new (OperationKind.Install, version, settings));
 
                         return true;
                     });
@@ -2664,29 +2672,9 @@ public sealed partial class App : Window
             return;
         }
 
-        if (!_foreground.TryReserveOperation (out OperationReservation? reservation))
-        {
-            return;
-        }
-
-        using (OperationReservation activeReservation = reservation!)
-        {
-            BatchPlan plan = BatchPlanning.ForUpgrades (
-                BatchPlanning.SelectedPackages (_state.Packages, _state.BatchSelected), _state.PinDataFresh);
-            using BatchPlanDialog review = new (plan);
-            App.Run (review);
-            if (review.Result != true)
-            {
-                return;
-            }
-
-            if (!activeReservation.TryTransfer (out ForegroundAdmission admission))
-            {
-                return;
-            }
-
-            StartBatchPlan (admission, plan);
-        }
+        HashSet<string> selected = new (_state.BatchSelected, StringComparer.OrdinalIgnoreCase);
+        ReviewOperationPlan ($"Checking {selected.Count} selected upgrades…", "Upgrade",
+            ct => BatchPlanning.ReviewUpgradesAsync (_state.Backend, selected, ct));
     }
 
     private void RunOperation (
@@ -2694,7 +2682,8 @@ public sealed partial class App : Window
         Package package,
         OperationKind kind,
         string activity,
-        Func<IProgress<OpProgress>, CancellationToken, Task<OpResult>> op)
+        Func<IProgress<OpProgress>, CancellationToken, Task<OpResult>> op,
+        RunRequest? runRequest = null)
     {
         if (!reservation.TryTransfer (out ForegroundAdmission admission))
         {
@@ -2750,7 +2739,8 @@ public sealed partial class App : Window
                                                      {
                                                          Operation = new () { Kind = kind, PackageId = package.Id },
                                                          Success = false,
-                                                         Message = ex.Message
+                                                         Message = ex.Message,
+                                                         Diagnostics = ex.ToString ()
                                                      };
                                                  }
 
@@ -2783,7 +2773,7 @@ public sealed partial class App : Window
                                                                           try
                                                                           {
                                                                               RunRecord record = RunRecord.SinglePackage (
-                                                                                  package, kind, startedAt, DateTimeOffset.UtcNow, result, cancelled);
+                                                                                  package, kind, startedAt, DateTimeOffset.UtcNow, result, cancelled, runRequest);
                                                                               _workflowStore.SaveRun (record);
                                                                           }
                                                                           catch (Exception ex)
@@ -3208,6 +3198,7 @@ public sealed partial class App : Window
 
         /// <summary>Raised with the clicked header's column index (the marker column is 0).</summary>
         public event Action<int>? HeaderClicked;
+        public event Action? ActionsRequested;
 
         /// <inheritdoc />
         protected override bool OnKeyDownNotHandled (Key key)
@@ -3228,6 +3219,17 @@ public sealed partial class App : Window
         /// <inheritdoc />
         protected override bool OnMouseEvent (Mouse mouse)
         {
+            if (mouse.Flags.HasFlag (MouseFlags.RightButtonClicked) && mouse.Position is { } location)
+            {
+                if (ScreenToCell (location.X, location.Y) is { } cell && Table is not null && cell.Y < Table.Rows)
+                {
+                    Value = new (cell);
+                    SetFocus ();
+                    ActionsRequested?.Invoke ();
+                }
+                mouse.Handled = true;
+                return true;
+            }
             if (mouse.IsSingleClicked == true && mouse.Position is { } pos)
             {
                 _ = ScreenToCell (pos.X, pos.Y, out int? headerColumn);

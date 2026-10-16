@@ -1,0 +1,256 @@
+namespace WinGetScout.Tests;
+
+public sealed class RunWorkflowTests
+{
+    internal static Package Tool (string source = "winget") => new ()
+        { Id = "Example.Tool", Name = "Example", Source = source, Version = "1", AvailableVersion = "2" };
+    internal static RunItem Failed (OperationKind kind = OperationKind.Install, string? version = null, InstallSettings? settings = null) =>
+        new ("Example.Tool", "Example", "winget", "Failed", "Installer failed") { Request = new (kind, version, settings) };
+
+    [Fact]
+    public void History_RoundTripsDiagnosticsAndExactInstallRequestAlongsideLegacyRecords ()
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-history-" + Guid.NewGuid ().ToString ("N"));
+        Directory.CreateDirectory (root);
+        try
+        {
+            File.WriteAllText (Path.Combine (root, "runs.json"), """
+                {"Runs":[{"StartedAtUtc":"2026-01-01T00:00:00Z","FinishedAtUtc":"2026-01-01T00:00:01Z","Action":"Install",
+                "Items":[{"Id":"Old.Tool","Name":"Old","Source":"winget","Status":"Failed","Reason":"Old failure"}]}]}
+                """);
+            WorkflowStore store = new (root);
+            Assert.False (store.Runs () [0].Items [0].CanRetry);
+            InstallSettings settings = new () { Scope = InstallScopePref.User, Architecture = InstallArchPref.Arm64,
+                Mode = InstallModePref.Silent, CustomArgs = "/feature=Tools" };
+            DateTimeOffset started = DateTimeOffset.UtcNow;
+            OpResult result = CliBackend.CliResult (new () { Kind = OperationKind.Install }, 1603,
+                "Starting\n\u001b[31mInstaller failed\u001b[0m\nCheck log C:\\Temp\\setup.log");
+            RunRecord record = RunRecord.SinglePackage (Tool (), OperationKind.Install, started, started.AddSeconds (12),
+                result, false, new (OperationKind.Install, "1.2.3", settings));
+            store.SaveRun (record);
+            RunItem item = store.Runs () [0].Items [0];
+            Assert.True (item.CanRetry);
+            Assert.Equal (1603, item.ExitCode);
+            Assert.Equal ("WinGet CLI", item.Backend);
+            Assert.Equal ("1.2.3", item.TargetVersion);
+            Assert.Equal (InstallScopePref.User, item.Request!.Settings!.Scope);
+            Assert.Equal ("/feature=Tools", item.Request.Settings.CustomArgs);
+            Assert.Contains ("Installer failed\nCheck log", item.Diagnostics);
+            Assert.DoesNotContain ('\u001b', item.DetailText ());
+            Assert.Contains ("12.0s", item.DetailText ());
+            Assert.Equal (2, store.Runs ().Count);
+            Assert.Null (store.Runs () [1].Items [0].Request);
+        }
+        finally { Directory.Delete (root, true); }
+    }
+
+    [Fact]
+    public void Diagnostics_PreserveLinesStripEscapeSequencesAndBoundLargeOutput ()
+    {
+        Assert.Equal ("First\nSecond\tvalue", DiagnosticText.Clean ("\u001b]0;title\aFirst\r\n\u001b[31mSecond\u001b[0m\tvalue\0"));
+        string large = DiagnosticText.Clean ("Command started\n" + new string ('x', DiagnosticText.MaxCharacters * 5) + "\nFinal failure: 1603");
+        Assert.True (large.Length <= DiagnosticText.MaxCharacters);
+        Assert.Contains ("output truncated", large);
+        Assert.StartsWith ("Command started", large);
+        Assert.EndsWith ("Final failure: 1603", large);
+    }
+
+    [Theory]
+    [InlineData (9000)]
+    [InlineData (17000)]
+    [InlineData (50000)]
+    public void Diagnostics_TruncationKeepsValidUnicodeAndTheFinalError (int count)
+    {
+        string text = DiagnosticText.Clean (string.Concat (Enumerable.Repeat ("🚀", count)) + "\nFinal error");
+        Assert.True (text.Length <= DiagnosticText.MaxCharacters);
+        Assert.EndsWith ("Final error", text);
+        _ = new UTF8Encoding (false, true).GetBytes (text);
+    }
+
+    [Fact]
+    public async Task CancelledRequestCannotReachTheBackend ()
+    {
+        RecordingBackend backend = new ();
+        using CancellationTokenSource cancellation = new ();
+        cancellation.Cancel ();
+        await Assert.ThrowsAsync<OperationCanceledException> (() => new RunRequest (OperationKind.Install)
+            .ExecuteAsync (backend, Tool (), null, cancellation.Token));
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Theory]
+    [InlineData (OperationKind.Pin)]
+    [InlineData (OperationKind.Unpin)]
+    [InlineData (OperationKind.BatchUpgrade)]
+    public void History_UnsupportedOrSuccessfulRequestsAreNotRetryable (OperationKind kind)
+    {
+        Assert.False (Failed (kind).CanRetry);
+        Assert.False ((Failed () with { Status = "Succeeded" }).CanRetry);
+        Assert.True ((Failed () with { Status = "Skipped" }).CanRetry);
+        Assert.False ((Failed () with { Source = string.Empty }).CanRetry);
+    }
+
+    [Fact]
+    public async Task RetryPreflight_IsReadOnlyAndPreservesVersionOptionsAndSource ()
+    {
+        RecordingBackend backend = new ();
+        InstallSettings options = new () { Scope = InstallScopePref.Machine, Mode = InstallModePref.Silent,
+            Architecture = InstallArchPref.X64, CustomArgs = "/custom" };
+        RunItem item = Failed (version: "2", settings: options);
+        BatchPlan plan = await RetryPlanning.ReviewAsync (backend, [item], CancellationToken.None);
+        Assert.Equal (0, backend.Mutations);
+        BatchPlanItem ready = Assert.Single (plan.Items);
+        Assert.True (ready.CanRun);
+        Assert.Contains ("Machine", ready.Reason);
+        Assert.Contains ("/custom", ready.Reason);
+        await ready.Request!.ExecuteAsync (backend, ready.Package, null, CancellationToken.None);
+        Assert.Equal (1, backend.Mutations);
+        Assert.Equal ("winget", backend.LastSource);
+        Assert.Equal ("2", backend.LastVersion);
+        Assert.Same (options, backend.LastSettings);
+    }
+
+    [Fact]
+    public async Task RetryPreflight_DoesNotReinstallAnAlreadyInstalledPackage ()
+    {
+        RecordingBackend backend = new () { Installed = [Tool ()] };
+        BatchPlan plan = await RetryPlanning.ReviewAsync (backend, [Failed ()], CancellationToken.None);
+        Assert.Equal (0, plan.Ready);
+        Assert.Contains ("Already installed", plan.Items [0].Reason);
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public async Task RetryPreflight_RejectsChangedSourceUnavailableVersionAndAmbiguousId ()
+    {
+        RecordingBackend backend = new () { Catalog = [Tool ("other")] };
+        BatchPlan changed = await RetryPlanning.ReviewAsync (backend, [Failed ()], CancellationToken.None);
+        Assert.Equal (0, changed.Ready);
+        backend.Catalog = [Tool ()];
+        BatchPlan missing = await RetryPlanning.ReviewAsync (backend, [Failed (version: "99")], CancellationToken.None);
+        Assert.Equal (0, missing.Ready);
+        Assert.Contains ("99", missing.Items [0].Reason);
+        backend.Catalog = [Tool (), Tool ("other")];
+        BatchPlan ambiguous = await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Download)], CancellationToken.None);
+        Assert.Equal (0, ambiguous.Ready);
+        Assert.Contains ("ambiguous", ambiguous.Items [0].Reason);
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public async Task RetryUpgrade_RechecksPinsAndCurrentAvailableVersion ()
+    {
+        RecordingBackend backend = new () { Pins = new Dictionary<string, PinState> { ["example.tool"] = new (PinStateKind.Blocking) } };
+        BatchPlan pinned = await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Upgrade)], CancellationToken.None);
+        Assert.Equal (0, pinned.Ready);
+        Assert.Contains ("Pinned", pinned.Items [0].Reason);
+        backend.Pins = new Dictionary<string, PinState> ();
+        BatchPlan ready = await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Upgrade)], CancellationToken.None);
+        Assert.Equal (1, ready.Ready);
+        Assert.Contains ("1 → 2", ready.Items [0].Reason);
+        backend.PinFailure = new InvalidOperationException ("Pins unavailable");
+        await Assert.ThrowsAsync<InvalidOperationException> (() => RetryPlanning.ReviewAsync (backend,
+            [Failed (OperationKind.Upgrade)], CancellationToken.None));
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public async Task RetryPreflight_RejectsRemovedInstallsAndUnavailableRepair ()
+    {
+        RecordingBackend backend = new ();
+        Assert.Equal (0, (await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Uninstall)], CancellationToken.None)).Ready);
+        backend.Installed = [Tool ()];
+        Assert.Equal (0, (await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Repair)], CancellationToken.None)).Ready);
+        Assert.Equal (1, (await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Uninstall)], CancellationToken.None)).Ready);
+    }
+
+    [Fact]
+    public async Task UpgradeReview_IncludesSelectionsHiddenBySourceAndExplainsMissingPackages ()
+    {
+        RecordingBackend backend = new () { Catalog = [Tool (), Tool ("msstore")] };
+        HashSet<string> selected = new (StringComparer.OrdinalIgnoreCase)
+            { BatchPlanning.Key (Tool ()), BatchPlanning.Key (Tool ("msstore")), "other\u001fMissing.Tool" };
+        BatchPlan plan = await BatchPlanning.ReviewUpgradesAsync (backend, selected, CancellationToken.None);
+        Assert.Equal (3, plan.Items.Count);
+        Assert.Equal (2, plan.Ready);
+        Assert.Equal ("winget", plan.Items [0].Package.Source);
+        Assert.Equal ("msstore", plan.Items [1].Package.Source);
+        Assert.Equal ("Missing.Tool", plan.Items [2].Package.Id);
+        Assert.Contains ("no longer present", plan.Items [2].Reason);
+        Assert.Equal (0, backend.Mutations);
+        backend.PinFailure = new InvalidOperationException ("Cannot verify pins");
+        await Assert.ThrowsAsync<InvalidOperationException> (() => BatchPlanning.ReviewUpgradesAsync (backend, selected, CancellationToken.None));
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public void Counts_IncludeSelectionsHiddenByFiltersOrEarlierSearchesAndDistinguishSources ()
+    {
+        Package visible = Tool ();
+        ListCounts counts = ListCounts.Capture ([visible], 10,
+            [BatchPlanning.Key (visible), BatchPlanning.Key (Tool ("msstore")), "winget\u001fAnother.Tool"]);
+        Assert.Equal (3, counts.Selected);
+        Assert.Equal (2, counts.HiddenSelected);
+        Assert.Equal ("1 of 10 shown · 3 selected (2 hidden)", counts.Label);
+        Assert.Equal ("0 of 10 shown · 3 selected (3 hidden)",
+            ListCounts.Capture ([], 10, ["a", "b", "c"]).Label);
+    }
+
+    [Fact]
+    public void ContextActions_RespectModeCapabilitiesPinsAndEmptyLists ()
+    {
+        string [] Ids (AppMode mode, Package? package, bool fresh = true, bool verify = false, bool repair = false, int selected = 0) =>
+            PackageActions.For (mode, package, fresh, verify, repair, selected, null).Select (x => x.Id).ToArray ();
+        string [] search = Ids (AppMode.Search, Tool ());
+        Assert.Contains ("install", search);
+        Assert.DoesNotContain ("uninstall", search);
+        Assert.DoesNotContain ("verify", search);
+        Assert.DoesNotContain ("pin", search);
+        string [] installed = Ids (AppMode.Installed, Tool (), verify: true, repair: true);
+        Assert.Contains ("verify", installed);
+        Assert.Contains ("repair", installed);
+        Assert.Contains ("uninstall", installed);
+        Assert.DoesNotContain ("install", installed);
+        Assert.DoesNotContain ("pin", Ids (AppMode.Upgrades, Tool (), fresh: false));
+        Assert.DoesNotContain ("upgrade", Ids (AppMode.Upgrades, Tool (), fresh: false));
+        Package pinned = Tool (); pinned.PinState = new (PinStateKind.Blocking);
+        Assert.DoesNotContain ("upgrade", Ids (AppMode.Upgrades, pinned));
+        Assert.Equal (["history"], Ids (AppMode.Search, null));
+        Assert.Contains ("batch", Ids (AppMode.Search, null, selected: 2));
+    }
+
+    internal sealed class RecordingBackend : IBackend
+    {
+        public IReadOnlyList<Package> Catalog { get; set; } = [Tool ()];
+        public IReadOnlyList<Package> Installed { get; set; } = [];
+        public IReadOnlyDictionary<string, PinState> Pins { get; set; } = new Dictionary<string, PinState> ();
+        public Exception? PinFailure { get; set; }
+        public int Mutations { get; private set; }
+        public string? LastSource { get; private set; }
+        public string? LastVersion { get; private set; }
+        public InstallSettings? LastSettings { get; private set; }
+        public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct) => Task.FromResult<IReadOnlyList<Package>> (Catalog.Where (p => source is null || p.Source == source).ToArray ());
+        public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => Task.FromResult (Installed);
+        public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Task.FromResult (Catalog);
+        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct) => Task.FromResult<PackageDetail?> (null);
+        public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => Task.FromResult<IReadOnlyList<string>> (["winget"]);
+        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct) => Task.FromResult<IReadOnlyList<string>> (["1", "2"]);
+        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct) => Task.FromResult<InstallerPreview?> (null);
+        public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
+        {
+            Mutations++; LastSource = source; LastVersion = version; LastSettings = settings;
+            return Task.FromResult (CliBackend.CliResult (new () { Kind = OperationKind.Install, PackageId = id }, 0, "Installed"));
+        }
+        public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => InstallAsync (id, null, null, progress, ct, source);
+        public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => InstallAsync (id, null, null, progress, ct);
+        public Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct) => InstallAsync (id, version, null, progress, ct);
+        public Task<OpResult> RepairAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => InstallAsync (id, null, null, progress, ct);
+        public Task<OpResult> PinAsync (string id, CancellationToken ct) => InstallAsync (id, null, null, null, ct);
+        public Task<OpResult> UnpinAsync (string id, CancellationToken ct) => InstallAsync (id, null, null, null, ct);
+        public bool CanVerify => false;
+        public bool CanRepair => false;
+        public Task<InstallVerification?> VerifyInstalledAsync (string id, CancellationToken ct) => Task.FromResult<InstallVerification?> (null);
+        public Task<IReadOnlyDictionary<string, PinState>> ListPinsAsync (CancellationToken ct) => PinFailure is null ? Task.FromResult (Pins) : Task.FromException<IReadOnlyDictionary<string, PinState>> (PinFailure);
+        public Task<string> DescribeAsync (CancellationToken ct) => Task.FromResult ("Test backend");
+    }
+}

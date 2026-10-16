@@ -2,7 +2,7 @@ namespace WinGetScout;
 
 public sealed partial class App
 {
-    private readonly WorkflowStore _workflowStore = new ();
+    private readonly WorkflowStore _workflowStore;
     private readonly Dictionary<string, Package> _searchSelected = new (StringComparer.OrdinalIgnoreCase);
     private UpdateCheckSnapshot? _lastCheck;
     private int _scheduleChangeActive;
@@ -126,63 +126,20 @@ public sealed partial class App
             RefreshStatusBar ();
             return;
         }
-        if (!_foreground.TryReserveOperation (out OperationReservation? reservation)) return;
         List<Package> selected = [.. _searchSelected.Values];
-        IDisposable loading = _state.AcquireLoading ();
-        SetStatus ($"Checking {selected.Count} selected packages…");
-        RefreshStatusBar ();
-
-        bool admitted = _background.TryRun (async lifetimeToken =>
+        ReviewOperationPlan ($"Checking {selected.Count} selected packages…", "Install", async ct =>
         {
-            try
+            IReadOnlyList<Package> installed = await _state.Backend.ListInstalledAsync (null, ct);
+            IReadOnlyList<string> sources = await _state.Backend.ListSourcesAsync (ct);
+            selected = await BatchPlanning.ResolveUnresolvedAsync (selected, async (item, token) =>
             {
-                IReadOnlyList<Package> installed = await _state.Backend.ListInstalledAsync (null, lifetimeToken);
-                IReadOnlyList<string> sources = await _state.Backend.ListSourcesAsync (lifetimeToken);
-                selected = await BatchPlanning.ResolveUnresolvedAsync (selected, async (item, token) =>
-                {
-                    IReadOnlyList<Package> matches = await _state.Backend.SearchAsync (item.Id, item.Source, token);
-                    return matches.FirstOrDefault (p =>
-                        p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)
-                        && p.Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase));
-                }, lifetimeToken);
-                BatchPlan plan = BatchPlanning.ForInstalls (selected, installed, sources);
-                await DispatchAsync (() =>
-                {
-                    loading.Dispose ();
-                    using BatchPlanDialog review = new (plan);
-                    App.Run (review);
-                    if (review.Result == true && reservation!.TryTransfer (out ForegroundAdmission admission))
-                    {
-                        StartBatchPlan (admission, plan);
-                    }
-                    else
-                    {
-                        SetStatus ("Install plan cancelled.");
-                        RefreshStatusBar ();
-                    }
-                }, lifetimeToken);
-            }
-            catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested) { }
-            catch (Exception ex)
-            {
-                await DispatchAsync (() =>
-                {
-                    SetStatus ($"Could not review install plan: {ex.Message}", isError: true);
-                    RefreshStatusBar ();
-                }, lifetimeToken);
-            }
-            finally
-            {
-                loading.Dispose ();
-                reservation!.Dispose ();
-            }
+                IReadOnlyList<Package> matches = await _state.Backend.SearchAsync (item.Id, item.Source, token);
+                return matches.FirstOrDefault (p =>
+                    p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)
+                    && p.Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase));
+            }, ct);
+            return BatchPlanning.ForInstalls (selected, installed, sources);
         });
-        if (!admitted)
-        {
-            loading.Dispose ();
-            reservation!.Dispose ();
-            ReportRejectedBackgroundAdmission ();
-        }
     }
 
     private void StartBatchPlan (ForegroundAdmission admission, BatchPlan plan)
@@ -212,37 +169,42 @@ public sealed partial class App
                 foreach (BatchPlanItem item in plan.Items)
                 {
                     Package package = item.Package;
+                    RunRequest runRequest = item.Request ?? new (plan.Action switch
+                    {
+                        "Install" => OperationKind.Install,
+                        "Upgrade" => OperationKind.Upgrade,
+                        _ => OperationKind.BatchUpgrade
+                    });
+                    DateTimeOffset itemStarted = DateTimeOffset.UtcNow;
                     if (!item.CanRun)
                     {
-                        results.Add (new (package.Id, package.Name, package.Source, "Skipped", item.Reason));
+                        results.Add (RunItem.Capture (package, runRequest, itemStarted, DateTimeOffset.UtcNow, null, false, item.Reason));
                         continue;
                     }
                     if (ct.IsCancellationRequested)
                     {
-                        results.Add (new (package.Id, package.Name, package.Source, "Skipped", "Cancelled before this package started."));
+                        results.Add (RunItem.Capture (package, runRequest, itemStarted, DateTimeOffset.UtcNow, null, false, "Cancelled before this package started."));
                         continue;
                     }
-                    await DispatchAsync (() =>
-                    {
-                        string activity = plan.Action == "Upgrade" ? "Upgrading" : "Installing";
-                        SetStatus ($"{activity} {package.Name}… · Esc to cancel", owner: StatusOwner.Operation);
-                        RefreshStatusBar ();
-                    }, ct, () => OperationRequestIsCurrent (request));
                     try
                     {
-                        OpResult result = plan.Action == "Install"
-                            ? await _state.Backend.InstallAsync (package.Id, null, null, null, ct, package.Source)
-                            : await _state.Backend.UpgradeAsync (package.Id, null, ct, package.Source);
-                        results.Add (new (package.Id, package.Name, package.Source,
-                            result.Success ? "Succeeded" : "Failed", LimitReason (result.Message)));
+                        await DispatchAsync (() =>
+                        {
+                            SetStatus ($"{runRequest.Kind}: {package.Name}… · Esc to cancel", owner: StatusOwner.Operation);
+                            RefreshStatusBar ();
+                        }, ct, () => OperationRequestIsCurrent (request));
+                        OpResult result = await runRequest.ExecuteAsync (_state.Backend, package, null, ct);
+                        results.Add (RunItem.Capture (package, runRequest, itemStarted, DateTimeOffset.UtcNow, result, false));
                     }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    catch (OperationCanceledException ex) when (ct.IsCancellationRequested && ex.CancellationToken == ct)
                     {
-                        results.Add (new (package.Id, package.Name, package.Source, "Skipped", "Cancelled during this package."));
+                        results.Add (RunItem.Capture (package, runRequest, itemStarted, DateTimeOffset.UtcNow, null, true));
                     }
                     catch (Exception ex)
                     {
-                        results.Add (new (package.Id, package.Name, package.Source, "Failed", LimitReason (ex.Message)));
+                        OpResult failure = new () { Operation = new () { Kind = runRequest.Kind, PackageId = package.Id },
+                            Message = ex.Message, Diagnostics = ex.ToString () };
+                        results.Add (RunItem.Capture (package, runRequest, itemStarted, DateTimeOffset.UtcNow, failure, false));
                     }
                 }
                 RunRecord record = new (started, DateTimeOffset.UtcNow, plan.Action, results);
@@ -255,15 +217,14 @@ public sealed partial class App
                     foreach (RunItem item in results.Where (x => x.Status == "Succeeded"))
                     {
                         _state.InvalidateCachedDetail (item.Id);
-                        if (plan.Action == "Install") _searchSelected.Remove ($"{item.Source}\u001f{item.Id}");
+                        if (item.Request?.Kind == OperationKind.Install) _searchSelected.Remove ($"{item.Source}\u001f{item.Id}");
+                        if (item.Request?.Kind == OperationKind.Upgrade) _state.BatchSelected.Remove ($"{item.Source}\u001f{item.Id}");
                     }
-                    _state.BatchSelected.Clear ();
                     (string outcome, bool outcomeIsError) = record.Completion (historyError);
                     CompleteOperationStatus (admission, outcome, outcomeIsError);
                     _foreground.Release (admission);
                     ReleaseOperationRequest (request);
-                    using RunRecordDialog dialog = new (record);
-                    App?.Run (dialog);
+                    ShowRunRecord (record);
                     TriggerRefresh (_state.StatusMessage);
                 }, lifetimeToken, () => OperationRequestIsCurrent (request));
             }
@@ -289,8 +250,6 @@ public sealed partial class App
         }
     }
 
-    private static string LimitReason (string? reason) => RunRecord.CompactReason (reason);
-
     private void ShowRunHistory ()
     {
         if (App is null) return;
@@ -312,8 +271,103 @@ public sealed partial class App
         App.Run (picker);
         int? index = picker.Result;
         if (index is not { } i || i < 0 || i >= runs.Count) return;
-        using RunRecordDialog detail = new (runs[i]);
+        ShowRunRecord (runs [i]);
+    }
+
+    private void ShowRunRecord (RunRecord record)
+    {
+        if (App is null) return;
+        using RunRecordDialog detail = new (record);
         App.Run (detail);
+        if (detail.Result is { Count: > 0 } retries) AskRetry (retries);
+    }
+
+    private void AskRetry (IReadOnlyList<RunItem> items) =>
+        ReviewOperationPlan ($"Checking {items.Count} retry requests…", "Retry",
+            ct => RetryPlanning.ReviewAsync (_state.Backend, items, ct));
+
+    private void ReviewOperationPlan (string activity, string planName, Func<CancellationToken, Task<BatchPlan>> build)
+    {
+        if (App is null || !_foreground.TryReserveOperation (out OperationReservation? reservation)) return;
+        IDisposable loading = _state.AcquireLoading ();
+        SetStatus (activity);
+        RefreshStatusBar ();
+        bool admitted = _background.TryRun (async lifetimeToken =>
+        {
+            try
+            {
+                BatchPlan plan = await build (lifetimeToken);
+                await DispatchAsync (() =>
+                {
+                    loading.Dispose ();
+                    using BatchPlanDialog review = new (plan);
+                    App.Run (review);
+                    if (review.Result == true && reservation!.TryTransfer (out ForegroundAdmission admission))
+                        StartBatchPlan (admission, plan);
+                    else
+                    {
+                        SetStatus ($"{planName} plan cancelled.");
+                        RefreshStatusBar ();
+                    }
+                }, lifetimeToken);
+            }
+            catch (OperationCanceledException ex) when (lifetimeToken.IsCancellationRequested && ex.CancellationToken == lifetimeToken) { }
+            catch (Exception ex)
+            {
+                await DispatchAsync (() =>
+                {
+                    SetStatus ($"Could not review {planName.ToLowerInvariant ()} plan: {ex.Message}", isError: true);
+                    RefreshStatusBar ();
+                }, lifetimeToken);
+            }
+            finally { loading.Dispose (); reservation!.Dispose (); }
+        });
+        if (!admitted) { loading.Dispose (); reservation!.Dispose (); ReportRejectedBackgroundAdmission (); }
+    }
+
+    private ListCounts CurrentCounts () => ListCounts.Capture (_state.Filtered, _state.Packages.Count,
+        _state.Mode == AppMode.Search ? _searchSelected.Keys
+        : _state.Mode == AppMode.Upgrades ? _state.BatchSelected : []);
+
+    private void ShowPackageActions ()
+    {
+        if (App is null || _state.InputMode != InputMode.Normal) return;
+        Package? package = CurrentPackage ();
+        ListCounts counts = CurrentCounts ();
+        IReadOnlyList<PackageAction> actions = PackageActions.For (_state.Mode, package, _state.PinDataFresh,
+            _state.Backend.CanVerify, _state.Backend.CanRepair, counts.Selected, _state.CurrentDetail);
+        string? choice = null;
+        bool shown = TryShowReservedModal (_foreground, () =>
+        {
+            string context = package is null ? "No package highlighted" : $"{package.Name} [{package.Id}] · {package.Source}";
+            using PackageActionDialog dialog = new ($"{context}\n{counts.Label}", actions);
+            App.Run (dialog);
+            choice = dialog.Result;
+        });
+        if (!shown) return;
+        switch (choice)
+        {
+            case "install": AskInstall (package, false); break;
+            case "version": AskInstall (package, true); break;
+            case "advanced": AskAdvancedInstall (package); break;
+            case "download": AskDownload (package); break;
+            case "upgrade": AskUpgrade (package); break;
+            case "uninstall": AskUninstall (package); break;
+            case "repair": AskRepair (package); break;
+            case "verify": AskVerify (package); break;
+            case "pin": TogglePin (package); break;
+            case "select":
+                if (_state.Mode == AppMode.Search) ToggleSearchSelection (package);
+                else ToggleBatchSelect (package);
+                break;
+            case "batch":
+                if (_state.Mode == AppMode.Search) AskBatchInstall ();
+                else AskBatchUpgrade ();
+                break;
+            case "homepage": OpenUrl (_state.CurrentDetail?.Homepage); break;
+            case "changelog": OpenUrl (_state.CurrentDetail?.ReleaseNotesUrl); break;
+            case "history": ShowRunHistory (); break;
+        }
     }
 
     private void ManageScheduledChecks ()

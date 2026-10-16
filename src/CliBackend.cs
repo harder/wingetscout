@@ -133,7 +133,7 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         (int code, string output) = await RunWithCodeAsync (InstallArgs (id, version, settings, source), ct);
         Operation op = new () { Kind = OperationKind.Install, PackageId = id, Version = version };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, code, output);
     }
 
     public async Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct)
@@ -155,7 +155,7 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
 
         (int code, string output) = await RunWithCodeAsync (DownloadArgs (id, version, dir), ct);
 
-        return new () { Operation = op, Success = code == 0, Message = code == 0 ? $"Downloaded to {dir}" : output };
+        return CliResult (op, code, output, code == 0 ? $"Downloaded to {dir}" : null);
     }
 
     public async Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct)
@@ -163,22 +163,24 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         (int code, string output) = await RunWithCodeAsync (UninstallArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Uninstall, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, code, output);
     }
 
     public async Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
     {
         // Try id (non-exact) first, then fall back to name (exact).
         (int code, string output) = await RunWithCodeAsync (UpgradeByIdArgs (id, source), ct);
+        string diagnostics = $"ID lookup attempt · exit {code} (0x{code:X8})\n{DiagnosticText.Clean (output)}";
 
         if (code != 0)
         {
             (code, output) = await RunWithCodeAsync (UpgradeByNameArgs (id, source), ct);
+            diagnostics += $"\n\nName lookup attempt · exit {code} (0x{code:X8})\n{DiagnosticText.Clean (output)}";
         }
 
         Operation op = new () { Kind = OperationKind.Upgrade, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, code, diagnostics, output);
     }
 
     public async Task<OpResult> PinAsync (string id, CancellationToken ct)
@@ -186,7 +188,7 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         (int code, string output) = await RunWithCodeAsync (PinAddArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Pin, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, code, output);
     }
 
     public async Task<OpResult> UnpinAsync (string id, CancellationToken ct)
@@ -194,8 +196,14 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         (int code, string output) = await RunWithCodeAsync (PinRemoveArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Unpin, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, code, output);
     }
+
+    internal static OpResult CliResult (Operation operation, int code, string output, string? message = null) => new ()
+    {
+        Operation = operation, Success = code == 0, Message = message ?? output,
+        Backend = "WinGet CLI", ExitCode = code, Diagnostics = DiagnosticText.Clean (output)
+    };
 
     // ──────────────────────────────────────────────────────────────────────
     // CLI argument construction — extracted as static helpers so they're
