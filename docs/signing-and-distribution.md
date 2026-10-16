@@ -24,7 +24,7 @@ their three-file WinGet manifest set as the `winget-manifests-<version>` workflo
 artifact. To regenerate and validate that set locally:
 
 ```powershell
-$version = '1.0.2' # substitute an already published release
+$version = '1.0.3' # substitute an already published release
 pwsh ./packaging/prepare-winget-submission.ps1 -Version $version
 ```
 
