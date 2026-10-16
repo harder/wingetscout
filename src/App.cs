@@ -1390,6 +1390,16 @@ public sealed partial class App : Window
                                                      await DispatchAsync (() =>
                                                                           {
                                                                               loading.Dispose ();
+                                                                              // A failed detail request must settle the panel, but stay uncached so
+                                                                              // selecting the row again can retry a transient catalog failure.
+                                                                              PackageDetail fallback = BuildStubDetail (p);
+                                                                              fallback.MergeContext (p);
+                                                                              if (_state.Mode != AppMode.Search && !string.IsNullOrEmpty (p.Version))
+                                                                              {
+                                                                                  fallback.InstalledVersion = p.Version;
+                                                                              }
+                                                                              _state.CurrentDetail = fallback;
+                                                                              _detailPanel.SetDetail (fallback, false);
                                                                               SetStatus ($"Detail error: {ex.Message}", isError: true);
                                                                               RefreshStatusBar ();
                                                                           }, ct,

@@ -56,10 +56,13 @@ public static class RetryPlanning
                 ? await backend.SearchAsync (item.Id, item.Source, ct)
                 : request.Kind == OperationKind.Upgrade
                     ? upgrades : installed;
-            Package? package = matches.SingleOrDefault (p =>
+            Package [] exact = matches.Where (p =>
                 p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)
-                && p.Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase));
-            string? skip = package is null || package.IsTruncated ? "Exact package and source are no longer available." : null;
+                && p.Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase)).Take (2).ToArray ();
+            Package? package = exact.Length == 1 ? exact [0] : null;
+            string? skip = exact.Length > 1
+                ? "Package ID and source are ambiguous: multiple exact matches were returned."
+                : package is null || package.IsTruncated ? "Exact package and source are no longer available." : null;
             if (skip is null && request.Kind == OperationKind.Install)
             {
                 BatchPlan check = BatchPlanning.ForInstalls ([package!], installed, sources);

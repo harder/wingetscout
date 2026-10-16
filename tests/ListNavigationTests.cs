@@ -354,6 +354,57 @@ public sealed class ListNavigationTests
     }
 
     [Fact]
+    public void CliMissingManifestFallsBackToSelectedRowDetails ()
+    {
+        NavigationBackend backend = new ()
+        {
+            Show = (id, _) =>
+            {
+                ProcessRunner.RunResult missing = new (unchecked ((int)0x8A150014),
+                    "No package found matching input criteria.", false, false, false);
+                string output = CliBackend.VerifiedQueryOutput (missing, "winget", CliBackend.ShowArgs (id));
+                return Task.FromResult (CliBackend.ParseShow (id, output));
+            }
+        };
+        using UiSession ui = new (AppMode.Installed, 2, backend);
+        ui.State.ClearCachedDetails ();
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("Example.000", ui.State.CurrentDetail?.Id);
+        Assert.Equal ("Package 000", ui.State.CurrentDetail?.Name);
+        Assert.Equal ("1", ui.State.CurrentDetail?.InstalledVersion);
+        Assert.True (ui.State.CurrentDetail?.IsDescriptionDegraded);
+        Assert.False (ui.State.StatusIsError);
+        ui.Press (KeyCode.CursorDown);
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("Example.001", ui.State.CurrentDetail?.Id);
+        ui.AssertSelection ();
+    }
+
+    [Fact]
+    public void DetailQueryFailureShowsRowContextWithoutLeavingLoadingOrCachingTheError ()
+    {
+        NavigationBackend backend = new ()
+        {
+            Show = (_, _) => Task.FromException<PackageDetail?> (new InvalidOperationException ("Source unavailable"))
+        };
+        using UiSession ui = new (AppMode.Installed, 1, backend);
+        ui.State.ClearCachedDetails ();
+        ui.State.CurrentDetail = null;
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("Example.000", ui.State.CurrentDetail?.Id);
+        Assert.True (ui.State.StatusIsError);
+        Assert.Contains ("Source unavailable", ui.State.StatusMessage);
+        Assert.False (ui.State.TryGetCachedDetail (ui.State.Packages [0], out _));
+        Assert.DoesNotContain ("loading", ui.Detail.Title, StringComparison.OrdinalIgnoreCase);
+        backend.Show = (id, _) => Task.FromResult<PackageDetail?> (new () { Id = id, Name = "Recovered details" });
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => ui.State.CurrentDetail?.Name == "Recovered details");
+        Assert.True (ui.State.TryGetCachedDetail (ui.State.Packages [0], out _));
+    }
+
+    [Fact]
     public void LateDetailCannotReplaceANewerSelection ()
     {
         TaskCompletionSource<PackageDetail?> late = new (TaskCreationOptions.RunContinuationsAsynchronously);

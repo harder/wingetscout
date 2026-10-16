@@ -605,7 +605,7 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         // WinGet uses this HRESULT for a successful query with no matching packages.
         // A failed source/query must never become an authoritative empty inventory.
         const int NoApplicationsFound = unchecked ((int)0x8A150014);
-        if (result.Code == NoApplicationsFound && args.Count > 0 && args [0] is "list" or "upgrade" or "search")
+        if (result.Code == NoApplicationsFound && args.Count > 0 && args [0] is "list" or "upgrade" or "search" or "show")
             return string.Empty;
 
         string command = args.Count == 0 ? executable : $"{executable} {args [0]}";

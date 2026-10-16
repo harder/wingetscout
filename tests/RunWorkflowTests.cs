@@ -111,6 +111,52 @@ public sealed class RunWorkflowTests
     }
 
     [Fact]
+    public void CliShowNotFoundReturnsNoManifestButOtherFailuresRemainErrors ()
+    {
+        string [] args = CliBackend.ShowArgs ("Missing.Tool");
+        ProcessRunner.RunResult missing = new (unchecked ((int)0x8A150014),
+            "No package found matching input criteria.", false, false, false);
+        string output = CliBackend.VerifiedQueryOutput (missing, "winget", args);
+        Assert.Null (CliBackend.ParseShow ("Missing.Tool", output));
+
+        ProcessRunner.RunResult failed = new (unchecked ((int)0x8A150012),
+            "No sources match the given value: Missing.Source", false, false, false);
+        Assert.Throws<InvalidOperationException> (() => CliBackend.VerifiedQueryOutput (failed, "winget", args));
+    }
+
+    [Theory]
+    [InlineData (OperationKind.Install)]
+    [InlineData (OperationKind.Download)]
+    [InlineData (OperationKind.Upgrade)]
+    public async Task RetryReviewSkipsDuplicateExactMatchesAndKeepsUnrelatedRequests (OperationKind kind)
+    {
+        Package other = new () { Id = "Other.Tool", Name = "Other", Source = "winget", Version = "1", AvailableVersion = "2" };
+        RecordingBackend backend = new () { Catalog = [Tool (), Tool (), other] };
+        RunItem duplicate = Failed (kind);
+        RunItem valid = duplicate with { Id = other.Id, Name = other.Name };
+
+        BatchPlan plan = await RetryPlanning.ReviewAsync (backend, [duplicate, valid], CancellationToken.None);
+
+        Assert.Equal (2, plan.Items.Count);
+        Assert.Equal (1, plan.Ready);
+        Assert.False (plan.Items [0].CanRun);
+        Assert.Contains ("ambiguous", plan.Items [0].Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True (plan.Items [1].CanRun);
+        Assert.Equal (other.Id, plan.Items [1].Package.Id);
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public async Task MockDownloadRetryCanReviewDuplicateCatalogEntriesWithoutThrowing ()
+    {
+        RunItem item = new ("Microsoft.VisualStudioCode", "Visual Studio Code", "winget", "Skipped", "Cancelled.")
+            { Request = new (OperationKind.Download) };
+        BatchPlan plan = await RetryPlanning.ReviewAsync (new MockBackend (), [item], CancellationToken.None);
+        Assert.Equal (0, plan.Ready);
+        Assert.Contains ("ambiguous", Assert.Single (plan.Items).Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void CliInventoryErrorsCannotBeParsedAsEmptyResults ()
     {
         ProcessRunner.RunResult failed = new (unchecked ((int)0x8A150012),
