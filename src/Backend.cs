@@ -18,8 +18,8 @@ public interface IBackend
 
     // Available versions for a package, newest first. Drives the version picker. Backends that
     // can't enumerate versions (CLI) return an empty list, in which case the UI falls back to a
-    // free-text version prompt.
-    Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct);
+    // free-text version prompt. Preserve the selected catalog when checking a requested version.
+    Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null);
 
     // What would be installed (installer type / architecture / scope / elevation) for a package,
     // optionally at a specific version and with the selected install settings. Shown in the install

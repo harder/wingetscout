@@ -542,7 +542,7 @@ public sealed class ListNavigationTests
         public Task<string> DescribeAsync (CancellationToken ct) => _mock.DescribeAsync (ct);
         public bool CanVerify => false;
         public bool CanRepair => false;
-        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct) => throw new NotSupportedException ();
+        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
         public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct) => throw new NotSupportedException ();
         public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
         public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => throw new NotSupportedException ();

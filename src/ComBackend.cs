@@ -451,12 +451,12 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
     // Version list + install preview
     // ------------------------------------------------------------------------
 
-    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct)
-        => WithPackageManagerAsync (ct, (pm, token) => ListVersionsCoreAsync (pm, id, token));
+    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
+        => WithPackageManagerAsync (ct, (pm, token) => ListVersionsCoreAsync (pm, id, source, token));
 
-    private static async Task<IReadOnlyList<string>> ListVersionsCoreAsync (PackageManager pm, string id, CancellationToken ct)
+    private static async Task<IReadOnlyList<string>> ListVersionsCoreAsync (PackageManager pm, string id, string? source, CancellationToken ct)
     {
-        CatalogPackage? pkg = await FindByIdAsync (pm, id, null, installedContext: false, ct);
+        CatalogPackage? pkg = await FindByIdAsync (pm, id, source, installedContext: false, ct);
 
         if (pkg is null)
         {

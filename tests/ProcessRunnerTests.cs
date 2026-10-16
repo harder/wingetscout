@@ -625,6 +625,24 @@ public sealed class ProcessRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task RunParsedForTestAsync_DoesNotInvokeParserWhenCommandFails ()
+    {
+        FakeCommand command = CreateScript (
+            "query-failure",
+            unix: "printf 'Source query failed'; exit 7",
+            windows: "[Console]::Out.Write('Source query failed'); exit 7");
+        bool parserCalled = false;
+
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException> (() =>
+            CliBackend.RunParsedForTestAsync (command.Arguments, command.Executable, TimeSpan.FromSeconds (10),
+                _ => { parserCalled = true; return Array.Empty<Package> (); }, TestContext.Current.CancellationToken));
+
+        Assert.False (parserCalled);
+        Assert.Contains ("7", error.Message);
+        Assert.Contains ("Source query failed", error.Message);
+    }
+
+    [Fact]
     public async Task RunParsedForTestAsync_DoesNotInvokeParserForTruncatedOutput ()
     {
         const int floodCharacters = ProcessRunner.MaxCapturedStdoutCharacters + 4096;

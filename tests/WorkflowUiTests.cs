@@ -6,6 +6,66 @@ namespace WinGetScout.Tests;
 [Collection ("Terminal UI")]
 public sealed class WorkflowUiTests
 {
+    [Theory]
+    [InlineData ("Save")]
+    [InlineData ("Disable")]
+    public void MockScheduleChangesAreDisabledAndCannotReachProductionTasks (string action)
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-mock-schedule-" + Guid.NewGuid ().ToString ("N"));
+        try
+        {
+            WorkflowStore store = new (root);
+            UpdateCheckSettings previous = new (true, "09:00", true);
+            store.SaveSchedule (previous);
+            using ListNavigationTests.UiSession ui = new (AppMode.Upgrades, 1, new MockBackend (), store);
+            bool sawDialog = false;
+            ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+            {
+                ScheduleDialog dialog = Assert.IsType<ScheduleDialog> (ui.Application.TopRunnable);
+                sawDialog = true;
+                Button save = Assert.Single (dialog.SubViews.OfType<Button> (), b => b.Text.Contains ("save"));
+                Button disable = Assert.Single (dialog.SubViews.OfType<Button> (), b => b.Text.Contains ("Disable"));
+                Assert.False (save.Enabled);
+                Assert.False (disable.Enabled);
+                Assert.True (Assert.Single (dialog.SubViews.OfType<Button> (), b => b.Text.Contains ("now")).Enabled);
+                // Even a programmatically supplied result must not cross the mock boundary.
+                dialog.Result = new (action, "14:00", false);
+                dialog.RequestStop ();
+                return false;
+            });
+            ui.Invoke ("ManageScheduledChecks");
+            Assert.True (sawDialog);
+            Assert.Equal (previous, store.Schedule ());
+            Assert.Contains ("mock", ui.State.StatusMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.False (ui.State.Loading);
+        }
+        finally { if (Directory.Exists (root)) Directory.Delete (root, true); }
+    }
+
+    [Fact]
+    public void MockSessionCanStillCheckNowWithoutCreatingScheduleSettings ()
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-mock-check-" + Guid.NewGuid ().ToString ("N"));
+        try
+        {
+            WorkflowStore store = new (root);
+            using ListNavigationTests.UiSession ui = new (AppMode.Upgrades, 1, new MockBackend (), store);
+            ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+            {
+                ScheduleDialog dialog = Assert.IsType<ScheduleDialog> (ui.Application.TopRunnable);
+                Button check = Assert.Single (dialog.SubViews.OfType<Button> (), b => b.Text.Contains ("now"));
+                check.SetFocus (); ui.Press (KeyCode.Enter);
+                return false;
+            });
+            ui.Invoke ("ManageScheduledChecks");
+            ui.PumpUntil (() => store.LatestCheck () is not null);
+            Assert.Equal ("Succeeded", store.LatestCheck ()!.Status);
+            Assert.False (File.Exists (Path.Combine (root, "schedule.json")));
+            Assert.False (store.Schedule ().Enabled);
+        }
+        finally { if (Directory.Exists (root)) Directory.Delete (root, true); }
+    }
+
     [Fact]
     public void FilteredCountsKeepHiddenSelectionsAndSelectAllOnlyChangesVisibleRows ()
     {

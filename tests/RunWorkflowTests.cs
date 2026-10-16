@@ -111,6 +111,59 @@ public sealed class RunWorkflowTests
     }
 
     [Fact]
+    public void CliInventoryErrorsCannotBeParsedAsEmptyResults ()
+    {
+        ProcessRunner.RunResult failed = new (unchecked ((int)0x8A150012),
+            "No sources match the given value: Scout.Nonexistent.Source", false, false, false);
+        InvalidOperationException error = Assert.Throws<InvalidOperationException> (() =>
+            CliBackend.VerifiedQueryOutput (failed, "winget", CliBackend.ListInstalledArgs ("Scout.Nonexistent.Source")));
+        Assert.Contains ("0x8A150012", error.Message);
+        Assert.Contains ("No sources match", error.Message);
+    }
+
+    [Theory]
+    [InlineData ("list")]
+    [InlineData ("upgrade")]
+    [InlineData ("search")]
+    public void CliKnownEmptyPackageQueriesRemainValid (string command)
+    {
+        ProcessRunner.RunResult empty = new (unchecked ((int)0x8A150014),
+            "No installed package found matching input criteria.", false, false, false);
+        string output = CliBackend.VerifiedQueryOutput (empty, "winget", [command]);
+        Assert.Empty (CliBackend.ParseTable (output, hasAvailable: command == "upgrade"));
+        Assert.Throws<InvalidOperationException> (() => CliBackend.VerifiedQueryOutput (empty, "winget", ["source", "list"]));
+    }
+
+    [Fact]
+    public async Task RetryPreflight_RequiresVerifiedInventoryEvenWhenCatalogLookupSucceeds ()
+    {
+        RecordingBackend backend = new () { InstalledFailure = new InvalidOperationException ("Inventory source unavailable") };
+        Assert.Single (await backend.SearchAsync ("Example.Tool", "winget", CancellationToken.None));
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException> (() =>
+            RetryPlanning.ReviewAsync (backend, [Failed ()], CancellationToken.None));
+        Assert.Contains ("Inventory source unavailable", error.Message);
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Theory]
+    [InlineData ("winget", 0)]
+    [InlineData ("msstore", 1)]
+    public async Task RetryPreflight_ChecksVersionsInTheRecordedSource (string source, int ready)
+    {
+        RecordingBackend backend = new ()
+        {
+            Catalog = [Tool (), Tool ("msstore")],
+            Sources = ["winget", "msstore"],
+            Versions = selectedSource => selectedSource == "winget" ? ["1"] : ["2"]
+        };
+        BatchPlan plan = await RetryPlanning.ReviewAsync (backend,
+            [Failed (version: "2") with { Source = source }], CancellationToken.None);
+        Assert.Equal (ready, plan.Ready);
+        Assert.Equal (source, Assert.Single (backend.VersionSources));
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
     public async Task RetryPreflight_DoesNotReinstallAnAlreadyInstalledPackage ()
     {
         RecordingBackend backend = new () { Installed = [Tool ()] };
@@ -223,18 +276,27 @@ public sealed class RunWorkflowTests
     {
         public IReadOnlyList<Package> Catalog { get; set; } = [Tool ()];
         public IReadOnlyList<Package> Installed { get; set; } = [];
+        public IReadOnlyList<string> Sources { get; set; } = ["winget"];
         public IReadOnlyDictionary<string, PinState> Pins { get; set; } = new Dictionary<string, PinState> ();
         public Exception? PinFailure { get; set; }
+        public Exception? InstalledFailure { get; set; }
+        public Func<string?, IReadOnlyList<string>>? Versions { get; set; }
+        public List<string?> VersionSources { get; } = [];
         public int Mutations { get; private set; }
         public string? LastSource { get; private set; }
         public string? LastVersion { get; private set; }
         public InstallSettings? LastSettings { get; private set; }
         public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct) => Task.FromResult<IReadOnlyList<Package>> (Catalog.Where (p => source is null || p.Source == source).ToArray ());
-        public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => Task.FromResult (Installed);
+        public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => InstalledFailure is null
+            ? Task.FromResult (Installed) : Task.FromException<IReadOnlyList<Package>> (InstalledFailure);
         public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Task.FromResult (Catalog);
         public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct) => Task.FromResult<PackageDetail?> (null);
-        public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => Task.FromResult<IReadOnlyList<string>> (["winget"]);
-        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct) => Task.FromResult<IReadOnlyList<string>> (["1", "2"]);
+        public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => Task.FromResult (Sources);
+        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
+        {
+            VersionSources.Add (source);
+            return Task.FromResult (Versions?.Invoke (source) ?? (IReadOnlyList<string>)["1", "2"]);
+        }
         public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct) => Task.FromResult<InstallerPreview?> (null);
         public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
         {

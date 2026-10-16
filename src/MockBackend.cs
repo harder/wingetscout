@@ -106,11 +106,12 @@ public sealed class MockBackend : IBackend
         return Task.FromResult<PackageDetail?> (detail);
     }
 
-    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct)
+    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
         PackageTemplate? p = SearchTemplates.Concat (InstalledTemplates)
-                                            .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase));
+                                            .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+                                                && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
         string baseV = p?.AvailableVersion ?? p?.Version ?? "1.0.0";
 
         // A small, distinct, newest-first list so the version picker is exercisable on any host.

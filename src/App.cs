@@ -2007,7 +2007,7 @@ public sealed partial class App : Window
     {
         FetchThen (
             "Loading versions…",
-            ct => _state.Backend.ListVersionsAsync (p.Id, ct),
+            ct => _state.Backend.ListVersionsAsync (p.Id, ct, p.Source),
             versions =>
             {
                 string? chosen = null;

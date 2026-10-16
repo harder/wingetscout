@@ -74,7 +74,7 @@ public static class RetryPlanning
             if (skip is null && request.Kind == OperationKind.Repair && !backend.CanRepair)
                 skip = "The current backend does not support repair.";
             if (skip is null && request.Version is { } version
-                && !(await backend.ListVersionsAsync (item.Id, ct)).Contains (version, StringComparer.OrdinalIgnoreCase))
+                && !(await backend.ListVersionsAsync (item.Id, ct, item.Source)).Contains (version, StringComparer.OrdinalIgnoreCase))
                 skip = $"Requested version {version} is no longer available.";
             // These APIs accept an ID without a source. Reject ambiguous IDs instead of changing targets.
             if (skip is null && (request.Kind is OperationKind.Download or OperationKind.Uninstall or OperationKind.Repair))

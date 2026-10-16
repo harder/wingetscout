@@ -36,10 +36,9 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     {
         ProcessRunner.RunResult upgrades = await RunDetailedWithCodeAsync (
             ListUpgradesArgs (null), "winget", CommandTimeout (ListUpgradesArgs (null)), ct);
-        EnsureCompleteForParsing (upgrades, "winget", ListUpgradesArgs (null));
-        if (upgrades.Code != 0) throw new InvalidOperationException ($"winget upgrade exited with code {upgrades.Code}.");
+        string output = VerifiedQueryOutput (upgrades, "winget", ListUpgradesArgs (null));
 
-        return (ParseTable (upgrades.Output, hasAvailable: true), await ListPinsAsync (ct));
+        return (ParseTable (output, hasAvailable: true), await ListPinsAsync (ct));
     }
 
     /// <summary>
@@ -103,7 +102,7 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     // these degrade: an empty version list makes the UI fall back to a free-text version prompt,
     // and a null preview means the install confirm shows no installer summary line. The COM
     // backend is the one that answers these.
-    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct)
+    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
         => Task.FromResult<IReadOnlyList<string>> ([]);
 
     public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct)
@@ -595,9 +594,23 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         CancellationToken ct)
     {
         ProcessRunner.RunResult result = await RunDetailedWithCodeAsync (args, executable, timeout, ct);
-        EnsureCompleteForParsing (result, executable, args);
+        return parser (VerifiedQueryOutput (result, executable, args));
+    }
 
-        return parser (result.Output);
+    internal static string VerifiedQueryOutput (ProcessRunner.RunResult result, string executable, IReadOnlyList<string> args)
+    {
+        EnsureCompleteForParsing (result, executable, args);
+        if (result.Code == 0) return result.Output;
+
+        // WinGet uses this HRESULT for a successful query with no matching packages.
+        // A failed source/query must never become an authoritative empty inventory.
+        const int NoApplicationsFound = unchecked ((int)0x8A150014);
+        if (result.Code == NoApplicationsFound && args.Count > 0 && args [0] is "list" or "upgrade" or "search")
+            return string.Empty;
+
+        string command = args.Count == 0 ? executable : $"{executable} {args [0]}";
+        throw new InvalidOperationException (
+            $"{command} exited with code {result.Code} (0x{result.Code:X8}): {RunRecord.CompactReason (result.Output)}");
     }
 
     internal static void EnsureCompleteForParsing (

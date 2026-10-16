@@ -75,6 +75,9 @@ at the same path if you use scheduled checks, because the task records
 that path.
 
 Mock sessions use `%LOCALAPPDATA%\WinGetScout\Mock` for their local data.
+**Check now** remains available there, but enabling, changing, and removing a
+daily task is disabled. The scheduled `--check-updates` command rejects explicit
+mock mode before reading or writing real-session settings or check results.
 
 ## Which backend is running?
 

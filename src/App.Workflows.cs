@@ -381,13 +381,20 @@ public sealed partial class App
             RefreshStatusBar ();
             return;
         }
-        using ScheduleDialog dialog = new (settings, _workflowStore.LatestCheck ());
+        bool canSchedule = _state.Backend is not MockBackend;
+        using ScheduleDialog dialog = new (settings, _workflowStore.LatestCheck (), canSchedule);
         App.Run (dialog);
         ScheduleChoice? choice = dialog.Result;
         if (choice is null) return;
         if (choice.Action == "Check")
         {
             CheckNow ();
+            return;
+        }
+        if (!canSchedule)
+        {
+            SetStatus ("Daily scheduling is unavailable in mock sessions. Use Check now for a mock update check.");
+            RefreshStatusBar ();
             return;
         }
         if (Interlocked.CompareExchange (ref _scheduleChangeActive, 1, 0) != 0)

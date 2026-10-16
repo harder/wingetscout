@@ -258,7 +258,7 @@ public sealed record ScheduleChoice (string Action, string DailyAt, bool NotifyO
 
 public sealed class ScheduleDialog : Runnable<ScheduleChoice?>
 {
-    public ScheduleDialog (UpdateCheckSettings settings, UpdateCheckSnapshot? latest)
+    public ScheduleDialog (UpdateCheckSettings settings, UpdateCheckSnapshot? latest, bool canSchedule = true)
     {
         Title = " Scheduled update checks ";
         BorderStyle = LineStyle.Rounded;
@@ -267,24 +267,28 @@ public sealed class ScheduleDialog : Runnable<ScheduleChoice?>
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
-        Label state = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = settings.Enabled ? "Daily checks enabled" : "Daily checks disabled" };
+        Label state = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = !canSchedule
+            ? "Mock session: daily scheduling is unavailable. Use Check now."
+            : settings.Enabled ? "Daily checks enabled" : "Daily checks disabled" };
         Label last = new () { X = 1, Y = 1, Width = Dim.Fill (1), Text = latest is null
             ? "No check has run yet."
             : latest.Status == "Succeeded"
                 ? $"Last check: {latest.CheckedAtUtc.ToLocalTime ():g} · {latest.Actionable} available · {latest.NewOrChanged} new or changed"
                 : $"Last check failed: {latest.Error}" };
         Label timeLabel = new () { X = 1, Y = 3, Text = "Daily time (HH:mm):" };
-        TextField time = new () { X = 21, Y = 3, Width = 8, Text = settings.DailyAt };
+        TextField time = new () { X = 21, Y = 3, Width = 8, Text = settings.DailyAt, Enabled = canSchedule };
         Label notifyLabel = new () { X = 1, Y = 5, Text = "Notify on changes or failures:" };
-        OptionSelector notify = new () { X = 32, Y = 5, Width = 20, Labels = ["Yes", "No"] };
+        OptionSelector notify = new () { X = 32, Y = 5, Width = 20, Labels = ["Yes", "No"], Enabled = canSchedule };
         notify.Value = settings.NotifyOnChange ? 0 : 1;
         Label error = new () { X = 1, Y = 7, Width = Dim.Fill (1), Text = string.Empty, SchemeName = Theme.DangerSchemeName };
-        Button save = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Enable / save", IsDefault = true };
-        Button disable = new () { X = 21, Y = Pos.AnchorEnd (1), Text = "_Disable" };
+        Button save = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Enable / save", IsDefault = canSchedule, Enabled = canSchedule };
+        Button disable = new () { X = 21, Y = Pos.AnchorEnd (1), Text = "_Disable", Enabled = canSchedule };
         Button check = new () { X = 35, Y = Pos.AnchorEnd (1), Text = "Check _now" };
         Button close = new () { X = 54, Y = Pos.AnchorEnd (1), Text = "Close" };
         save.Accepting += (_, e) =>
         {
+            e.Handled = true;
+            if (!canSchedule) return;
             if (!UpdateChecks.TryParseDailyTime (time.Text ?? string.Empty, out TimeOnly ignoredTime))
             {
                 error.Text = "Enter a 24-hour time, for example 09:00.";
@@ -294,12 +298,16 @@ public sealed class ScheduleDialog : Runnable<ScheduleChoice?>
                 Result = new ("Save", time.Text!, notify.Value == 0);
                 RequestStop ();
             }
-            e.Handled = true;
         };
-        disable.Accepting += (_, e) => { Result = new ("Disable", settings.DailyAt, settings.NotifyOnChange); RequestStop (); e.Handled = true; };
+        disable.Accepting += (_, e) =>
+        {
+            e.Handled = true;
+            if (!canSchedule) return;
+            Result = new ("Disable", settings.DailyAt, settings.NotifyOnChange); RequestStop ();
+        };
         check.Accepting += (_, e) => { Result = new ("Check", settings.DailyAt, settings.NotifyOnChange); RequestStop (); e.Handled = true; };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
         Add (state, last, timeLabel, time, notifyLabel, notify, error, save, disable, check, close);
-        time.SetFocus ();
+        (canSchedule ? (View)time : check).SetFocus ();
     }
 }
