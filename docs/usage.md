@@ -75,6 +75,8 @@ Use **Copy**, **Save text**, or **Save JSON** in a run's diagnostic view to keep
 the displayed package's report. Save lets you choose a file and asks before
 replacing an existing file. Cancelling the save dialog or a failed save leaves the original file
 and history intact. Clipboard errors stay in the viewer so you can save instead.
+Saved reports remain available while another operation, review, or CSV export is
+in progress; opening or closing a report does not cancel that work.
 
 ## Backend and source diagnostics
 
@@ -82,6 +84,7 @@ Press `D` or choose **Backend and source diagnostics** in the action menu.
 The panel shows the active backend and version, process architecture, supported
 verify/repair actions, any recorded COM fallback reason, active source filter,
 and the most recent inventory load error in this session.
+The `D` shortcut also works while a foreground workflow is in progress.
 
 Source checks query each configured source for `Microsoft.PowerToys`. The report
 distinguishes a successful query with no matches from a failed query or failed

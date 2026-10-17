@@ -8,14 +8,14 @@ public sealed partial class App
     private void ShowBackendDiagnostics ()
     {
         if (App is null) return;
-        TryShowReservedModal (_foreground, () => ShowDiagnosticDocument (
-            new ("Backend and source diagnostics", "Collecting read-only diagnostics…", "{}"), backendDiagnostics: true));
+        ShowDiagnosticDocument (
+            new ("Backend and source diagnostics", "Collecting read-only diagnostics…", "{}"), backendDiagnostics: true);
     }
 
     private void ShowRunDiagnostics (RunItem item)
     {
         if (App is null) return;
-        TryShowReservedModal (_foreground, () => ShowDiagnosticDocument (DiagnosticDocument.ForRun (item)));
+        ShowDiagnosticDocument (DiagnosticDocument.ForRun (item));
     }
 
     private void ShowDiagnosticDocument (DiagnosticDocument document, bool backendDiagnostics = false)

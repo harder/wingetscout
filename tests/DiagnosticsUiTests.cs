@@ -309,6 +309,103 @@ public sealed class DiagnosticsUiTests
         Assert.Equal (0, backend.Mutations);
     }
 
+    [Theory]
+    [InlineData ((int)ForegroundWorkflow.Operation, false)]
+    [InlineData ((int)ForegroundWorkflow.Operation, true)]
+    [InlineData ((int)ForegroundWorkflow.Preflight, false)]
+    [InlineData ((int)ForegroundWorkflow.Preflight, true)]
+    [InlineData ((int)ForegroundWorkflow.Export, false)]
+    [InlineData ((int)ForegroundWorkflow.Export, true)]
+    public void HistoryReportsRemainAccessibleDuringForegroundWork (int workflow, bool enter)
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-busy-history-" + Guid.NewGuid ().ToString ("N"));
+        try
+        {
+            WorkflowStore store = new (root);
+            RunItem item = Failed () with { Diagnostics = "Saved failure report" };
+            store.SaveRun (new (DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Install", [item]));
+            string path = Path.Combine (root, "report.json");
+            string? copied = null;
+            RecordingBackend backend = new ();
+            using ListNavigationTests.UiSession ui = new (AppMode.Installed, 1, backend, store,
+                copyDiagnosticText: text => { copied = text; return true; }, diagnosticSavePath: _ => path);
+            ForegroundWorkflowCoordinator coordinator = ui.Get<ForegroundWorkflowCoordinator> ("_foreground");
+            Assert.True (coordinator.TryBegin ((ForegroundWorkflow)workflow, out ForegroundAdmission active));
+            bool selectedRun = false, saved = false;
+            ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+            {
+                if (!selectedRun)
+                {
+                    Assert.IsType<RunHistoryDialog> (ui.Application.TopRunnable);
+                    selectedRun = true; ui.Press (KeyCode.Enter); return true;
+                }
+                RunRecordDialog record = Assert.IsType<RunRecordDialog> (ui.Application.TopRunnable);
+                bool saving = false;
+                ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+                {
+                    RunDiagnosticsDialog viewer = Assert.IsType<RunDiagnosticsDialog> (ui.Application.TopRunnable);
+                    Assert.True (coordinator.IsCurrent (active));
+                    Assert.False (coordinator.TryReserveOperation (out _));
+                    if (!saving)
+                    {
+                        Assert.Contains ("Saved failure report", viewer.Document.Text);
+                        PressButton (ui, viewer, "Copy");
+                        Assert.Equal (item.DetailText (), copied);
+                        saving = true; PressButton (ui, viewer, "JSON");
+                    }
+                    else if (viewer.StatusText.StartsWith ("Saved to"))
+                    {
+                        Assert.Equal (DiagnosticDocument.ForRun (item).Json, File.ReadAllText (path));
+                        saved = true; ui.Press (KeyCode.Esc); return false;
+                    }
+                    return true;
+                });
+                if (enter) Assert.Single (record.SubViews.OfType<ListView> ()).SetFocus ();
+                else Assert.Single (record.SubViews.OfType<Button> (), b => b.Text.Contains ("Details")).SetFocus ();
+                ui.Press (KeyCode.Enter);
+                Assert.True (saved, "History Details must open even when foreground admission is occupied.");
+                ui.Press (KeyCode.Esc); return false;
+            });
+            ui.Press (new Key ('L'));
+            Assert.True (saved);
+            Assert.True (coordinator.IsCurrent (active));
+            Assert.True (coordinator.Release (active));
+            Assert.True (coordinator.TryReserveOperation (out OperationReservation? next));
+            next!.Dispose ();
+            Assert.Equal (0, backend.Mutations);
+            Assert.Single (store.Runs ());
+            Assert.Same (ui.Window, ui.Application.TopRunnable);
+        }
+        finally { if (Directory.Exists (root)) Directory.Delete (root, true); }
+    }
+
+    [Theory]
+    [InlineData ((int)ForegroundWorkflow.Operation)]
+    [InlineData ((int)ForegroundWorkflow.Preflight)]
+    [InlineData ((int)ForegroundWorkflow.Export)]
+    public void BackendDiagnosticsRemainAccessibleWithoutReleasingForegroundWork (int workflow)
+    {
+        RecordingBackend backend = new ();
+        using ListNavigationTests.UiSession ui = new (AppMode.Installed, 1, backend);
+        ForegroundWorkflowCoordinator coordinator = ui.Get<ForegroundWorkflowCoordinator> ("_foreground");
+        Assert.True (coordinator.TryBegin ((ForegroundWorkflow)workflow, out ForegroundAdmission active));
+        bool checkedReport = false;
+        ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+        {
+            RunDiagnosticsDialog viewer = Assert.IsType<RunDiagnosticsDialog> (ui.Application.TopRunnable);
+            if (!viewer.Document.Text.Contains ("winget: query succeeded")) return true;
+            Assert.True (coordinator.IsCurrent (active));
+            Assert.False (coordinator.TryReserveOperation (out _));
+            checkedReport = true; ui.Press (KeyCode.Esc); return false;
+        });
+        ui.Press (new Key ('D'));
+        Assert.True (checkedReport);
+        Assert.True (coordinator.IsCurrent (active));
+        Assert.True (coordinator.Release (active));
+        Assert.Equal (0, backend.Mutations);
+        Assert.Same (ui.Window, ui.Application.TopRunnable);
+    }
+
     [Fact]
     public void LongSaveFeedbackStaysAboveTheActionButtonsAfterResize ()
     {

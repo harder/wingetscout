@@ -59,8 +59,10 @@ read-only checks and manages the optional current-user scheduled task.
 `src/App.Diagnostics.cs` owns read-only diagnostic sessions and guarded copy/save
 actions. `src/Diagnostics.cs` collects backend/source snapshots and writes bounded,
 atomic text or source-generated JSON exports. Closing a viewer cancels its work;
-late results cannot update a disposed dialog. Package operations retain their
-existing confirmation and plan-review paths.
+late results cannot update a disposed dialog. These sessions do not reserve or
+release foreground workflows, so read-only reports remain accessible during
+operations, preflight, and CSV exports. Package operations retain their existing
+confirmation and plan-review paths.
 
 ## Windows COM activation
 
