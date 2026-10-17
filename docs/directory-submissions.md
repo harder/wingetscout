@@ -2,6 +2,14 @@
 
 This page contains the submission copy and steps for Scout for WinGet 1.0.3. Use the current release and update any version-specific links before a later submission. The WinGet community package PR has been submitted, but the package is not available from the community source until that PR is merged and indexed.
 
+The [improvements since v1.0.3](releases/1.1.0.md) are merged into main but have not
+been released. Keep the v1.0.3 submission copy below tied to that download. After
+the next release, update the version, assets, hashes, and screenshots together;
+the new feature copy can highlight selection-aware batches, per-package progress,
+reviewed retries, contextual actions, and copyable backend/source diagnostics.
+Current website captures show main's development preview and should be labelled
+accordingly if used before that release.
+
 ## 1. Scoop
 
 The ready-to-copy manifest is [packaging/scoop/wingetscout.json](../packaging/scoop/wingetscout.json). It uses the published x64 and ARM64 ZIPs, pins their SHA-256 hashes, and creates a `wingetscout` command shim. Its `checkver` and `autoupdate` fields allow a Scoop bucket's updater to propose future version bumps. Scout keeps its own user data under `%LOCALAPPDATA%\WinGetScout`, so this manifest does not need Scoop's `persist` field. The ZIP's `wingetscout/` directory keeps the executable and COM DLLs together.

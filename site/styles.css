@@ -64,6 +64,8 @@ img{display:block;max-width:100%}
 .feature-number{font-size:10px;font-weight:850;color:var(--rust-dark);letter-spacing:.13em}
 .feature-card h3{font-size:18px;letter-spacing:-.025em;margin:10px 0;color:#39303a}
 .feature-card p{margin:0;color:#625d63;font-size:13px;line-height:1.64}
+.feature-card .feature-links{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:14px}
+.feature-links a{color:var(--rust-dark);font-size:12px;font-weight:750;text-decoration:underline;text-underline-offset:3px}
 .comparison-section{padding:94px 0;background:#3c3441;color:#f8f1e8}
 .comparison-layout{display:grid;grid-template-columns:.76fr 1fr;gap:70px;align-items:center}
 .comparison-intro .section-kicker{color:#e9ae91}

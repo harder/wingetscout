@@ -26,8 +26,11 @@ use the CLI even when COM handles the other package work.
 ## UI and state
 
 `src/App.cs` owns the Terminal.Gui window, package table, detail pane,
-filters, sorting, focus, and status bar. `src/App.Workflows.cs` handles
-package sets and install planning. `src/AppState.cs` holds the current mode,
+filters, sorting, focus, and the two-row status bar. Compact layouts omit
+secondary columns while retaining the active sort in the frame title.
+`src/App.Workflows.cs` handles package sets, selected plans, reviewed retries,
+and contextual actions. `src/PackageActions.cs` computes visible/total/hidden
+selection counts and capability-aware menu entries. `src/AppState.cs` holds the current mode,
 packages, filter, selection, sort, progress, and view generations.
 `src/Ui.cs`, `src/DetailPanel.cs`, and `src/WorkflowDialogs.cs` provide the
 smaller views and dialogs.
@@ -38,6 +41,14 @@ admission, cancellation, failure collection, and shutdown of that work.
 generation counters prevent a superseded list or detail request from
 replacing newer results. Detail loading is debounced when selection moves
 quickly.
+
+`ForegroundWorkflowCoordinator` reserves package-changing workflows and CSV
+exports. Cancelling preflight releases its loading lease and reservation without
+waiting for a non-cooperative backend; request identity guards keep its eventual
+response and cleanup from affecting a replacement check. Each batch item has a
+new progress generation so delayed reports cannot overwrite the next item's
+status. Completed batches refresh inventory before opening results and remove
+successful package marks while keeping unsuccessful selections.
 
 The dispatch wrapper awaits Terminal.Gui's `InvokeAsync`, which settles queued
 work when the final UI session ends and operates independently of user timers.
@@ -56,6 +67,12 @@ read-only checks and manages the optional current-user scheduled task.
 `src/CsvExporter.cs` exports the visible list. CLI subprocesses run through
 `src/ProcessRunner.cs`, which bounds output and owns process cleanup.
 
+`src/RunWorkflows.cs` captures package requests and diagnostic outcomes, then
+builds retry plans from those requests. Retries resolve the exact ID/source,
+recheck installed/version/pin state, and pass through the normal plan review.
+History retains original results; old entries without a request remain readable
+but cannot be retried. The run viewer lists the latest 20 records.
+
 `src/App.Diagnostics.cs` owns read-only diagnostic sessions and guarded copy/save
 actions. `src/Diagnostics.cs` collects backend/source snapshots and writes bounded,
 atomic text or source-generated JSON exports. Closing a viewer cancels its work;
@@ -63,6 +80,15 @@ late results cannot update a disposed dialog. These sessions do not reserve or
 release foreground workflows, so read-only reports remain accessible during
 operations, preflight, and CSV exports. Package operations retain their existing
 confirmation and plan-review paths.
+
+`src/InstallOptionPresentation.cs` describes backend defaults versus explicit
+install overrides and detects known architecture/scope conflicts in installer
+previews. Advanced options fetch a preview before the final confirmation; a
+missing preview is disclosed instead of inferred to satisfy an override.
+
+Mock history, sets, and checks live under `%LOCALAPPDATA%\WinGetScout\Mock`.
+Mock sessions support manual update checks but cannot change scheduled tasks.
+Mock upgrade results update only the session's sample inventory.
 
 ## Windows COM activation
 

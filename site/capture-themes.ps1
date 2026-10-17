@@ -10,8 +10,8 @@ $app = (Resolve-Path -LiteralPath $AppPath).Path.Replace('\', '/')
 $recorder = (Get-Command $TuirecPath -ErrorAction Stop).Source
 $captures = @(
   @{ Name = 'scout-sage-search'; Theme = 'sage'; Keys = 'wait:500,CursorLeft,`git`,Enter,wait:1200'; Contains = 'Git.Git' },
-  @{ Name = 'scout-amber-installed'; Theme = 'amber'; Keys = 'wait:1200'; Contains = 'Installed (10)' },
-  @{ Name = 'scout-moss-upgrades'; Theme = 'moss'; Keys = 'wait:500,CursorRight,wait:1100'; Contains = 'Upgrades (4' },
+  @{ Name = 'scout-amber-installed'; Theme = 'amber'; Keys = 'wait:1200'; Contains = '10 of 10 shown' },
+  @{ Name = 'scout-moss-upgrades'; Theme = 'moss'; Keys = 'wait:500,CursorRight,wait:1100,Space,CursorDown,Space,wait:600'; Contains = '2 selected' },
   @{ Name = 'scout-rose-search'; Theme = 'rose'; Keys = 'wait:500,CursorLeft,`visual`,Enter,wait:1100'; Contains = 'Visual Studio Code' }
 )
 
@@ -36,8 +36,8 @@ try {
   }
 
   $demos = @(
-    @{ Name = 'scout-search-demo'; Theme = 'sage'; Keys = 'wait:500,CursorLeft,wait:300,`git`,Enter,wait:900,CursorDown,wait:650,CursorUp,wait:800' },
-    @{ Name = 'scout-upgrades-demo'; Theme = 'moss'; Keys = 'wait:500,CursorRight,wait:900,CursorDown,wait:650,CursorUp,wait:800' }
+    @{ Name = 'scout-search-demo'; Theme = 'sage'; Keys = 'wait:800,CursorLeft,wait:600,`git`,Enter,wait:1800,CursorDown,wait:1200,CursorUp,wait:1000,Space,wait:1500,`m`,wait:2500,Esc,wait:700,`i`,wait:3500,Enter,wait:2500,Esc,wait:700,Esc,wait:1200' },
+    @{ Name = 'scout-upgrades-demo'; Theme = 'moss'; Keys = 'wait:800,CursorRight,wait:1800,Space,wait:1000,CursorDown,Space,wait:2000,`u`,wait:3500,Enter,wait:2500,Esc,wait:2000,Esc,wait:1200,`D`,wait:3500,Esc,wait:1000' }
   )
   foreach ($demo in $demos) {
     $output = Join-Path $PSScriptRoot "media/$($demo.Name).gif"
