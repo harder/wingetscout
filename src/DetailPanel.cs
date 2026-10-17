@@ -225,7 +225,7 @@ public sealed class DetailPanel : FrameView
                 }
                 else
                 {
-                    AddAction ("i", "Install");
+                    AddAction ("i", "Install (selected if marked)");
                     AddAction ("I", "Install specific version");
                 }
 
@@ -253,7 +253,7 @@ public sealed class DetailPanel : FrameView
 
                 break;
             case AppMode.Upgrades:
-                AddAction ("u", "Upgrade");
+                AddAction ("u", "Upgrade (selected if marked)");
                 AddAction ("x", "Uninstall");
                 if (CanVerify)
                 {

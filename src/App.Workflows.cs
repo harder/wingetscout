@@ -19,7 +19,11 @@ public sealed partial class App
 
     private void ToggleSearchSelection (Package? package)
     {
-        if (package is null) return;
+        if (package is null)
+        {
+            if (CurrentCounts ().Selected > 0) RefreshSelection ();
+            return;
+        }
         string key = BatchPlanning.Key (package);
         if (!_searchSelected.Remove (key))
         {
@@ -31,14 +35,34 @@ public sealed partial class App
             }
             _searchSelected.Add (key, package);
         }
+        RefreshSelection ();
+    }
+
+    private void RefreshSelection (string? message = null)
+    {
         UpdateListTitle ();
         _packageTable.SetNeedsDraw ();
+        ListCounts counts = CurrentCounts ();
+        int count = counts.Selected;
+        SetStatus (message ?? (count == 0 ? "Selection cleared."
+            : $"{counts.SelectionLabel} · {(_state.Mode == AppMode.Search ? "i to review installs" : "u to review upgrades")}"));
         RefreshStatusBar ();
+    }
+
+    private bool ClearSelection ()
+    {
+        if (CurrentCounts ().Selected == 0) return false;
+        if (_state.Mode == AppMode.Search) _searchSelected.Clear ();
+        else if (_state.Mode == AppMode.Upgrades) _state.BatchSelected.Clear ();
+        else return false;
+        RefreshSelection ();
+        return true;
     }
 
     private void ToggleSearchSelectVisible ()
     {
         List<Package> visible = _state.Filtered;
+        string? message = null;
         if (visible.Count > 0 && visible.All (p => _searchSelected.ContainsKey (BatchPlanning.Key (p))))
         {
             foreach (Package package in visible) _searchSelected.Remove (BatchPlanning.Key (package));
@@ -51,11 +75,9 @@ public sealed partial class App
                 _searchSelected[BatchPlanning.Key (package)] = package;
             }
             if (visible.Any (p => !_searchSelected.ContainsKey (BatchPlanning.Key (p))))
-                SetStatus ("Selection limit reached; refine the search or deselect packages to add more.");
+                message = "Selection limit reached; refine the search or deselect packages to add more.";
         }
-        UpdateListTitle ();
-        _packageTable.SetNeedsDraw ();
-        RefreshStatusBar ();
+        RefreshSelection (message);
     }
 
     private void ManagePackageSets ()
@@ -127,7 +149,9 @@ public sealed partial class App
             RefreshStatusBar ();
             return;
         }
-        List<Package> selected = [.. _searchSelected.Values];
+        List<Package> selected = _state.Filtered.Where (p => _searchSelected.ContainsKey (BatchPlanning.Key (p)))
+            .Concat (_searchSelected.Values.OrderBy (BatchPlanning.Key, StringComparer.OrdinalIgnoreCase))
+            .DistinctBy (BatchPlanning.Key, StringComparer.OrdinalIgnoreCase).ToList ();
         ReviewOperationPlan ($"Checking {selected.Count} selected packages…", "Install",
             ct => BatchPlanning.ReviewInstallsAsync (_state.Backend, selected, ct));
     }
@@ -150,10 +174,13 @@ public sealed partial class App
         DateTimeOffset started = DateTimeOffset.UtcNow;
         CancellationToken ct = request.Token;
         IDisposable loading = _state.AcquireLoading ();
+        _state.OpProgress = null;
+        SetStatus ($"Starting {plan.Action.ToLowerInvariant ()} plan ({plan.Ready} packages) · Esc to cancel", owner: StatusOwner.Operation);
         RefreshStatusBar ();
         bool admitted = _background.TryRun (async lifetimeToken =>
         {
             List<RunItem> results = [];
+            int runningItem = 0;
             try
             {
                 foreach (BatchPlanItem item in plan.Items)
@@ -178,12 +205,15 @@ public sealed partial class App
                     }
                     try
                     {
+                        runningItem++;
                         await DispatchAsync (() =>
                         {
-                            SetStatus ($"{runRequest.Kind}: {package.Name}… · Esc to cancel", owner: StatusOwner.Operation);
+                            Interlocked.Increment (ref _progressGeneration);
+                            _state.OpProgress = null;
+                            SetStatus ($"{runRequest.Kind} {runningItem}/{plan.Ready}: {package.Name} · Esc to cancel", owner: StatusOwner.Operation);
                             RefreshStatusBar ();
                         }, ct, () => OperationRequestIsCurrent (request));
-                        OpResult result = await runRequest.ExecuteAsync (_state.Backend, package, null, ct);
+                        OpResult result = await runRequest.ExecuteAsync (_state.Backend, package, new UiProgress (this, request), ct);
                         results.Add (RunItem.Capture (package, runRequest, itemStarted, DateTimeOffset.UtcNow, result, false));
                     }
                     catch (OperationCanceledException ex) when (ct.IsCancellationRequested && ex.CancellationToken == ct)
@@ -201,6 +231,7 @@ public sealed partial class App
                 await DispatchAsync (() =>
                 {
                     loading.Dispose ();
+                    _state.OpProgress = null;
                     string? historyError = null;
                     try { _workflowStore.SaveRun (record); }
                     catch (Exception ex) { historyError = ex.Message; }
@@ -214,8 +245,8 @@ public sealed partial class App
                     CompleteOperationStatus (admission, outcome, outcomeIsError);
                     _foreground.Release (admission);
                     ReleaseOperationRequest (request);
-                    ShowRunRecord (record);
                     TriggerRefresh (_state.StatusMessage);
+                    ShowRunRecord (record);
                 }, lifetimeToken, () => OperationRequestIsCurrent (request));
             }
             finally
@@ -279,17 +310,43 @@ public sealed partial class App
     private void ReviewOperationPlan (string activity, string planName, Func<CancellationToken, Task<BatchPlan>> build)
     {
         if (App is null || !_foreground.TryReserveOperation (out OperationReservation? reservation)) return;
+        CancellationTokenSource request = CreateLifetimeLinkedSource ();
+        if (Interlocked.CompareExchange (ref _preflightCts, request, null) is not null)
+        {
+            reservation!.Dispose ();
+            request.Dispose ();
+            return;
+        }
+        CancellationToken ct = request.Token;
         IDisposable loading = _state.AcquireLoading ();
-        SetStatus (activity);
+        void ReleaseCheck ()
+        {
+            loading.Dispose ();
+            if (ReferenceEquals (Interlocked.CompareExchange (ref _preflightCts, null, request), request))
+                Interlocked.Exchange (ref _cancelPreflight, null);
+        }
+        void Release () { ReleaseCheck (); reservation!.Dispose (); }
+        _cancelPreflight = () =>
+        {
+            CancelSource (request);
+            Release ();
+            SetStatus ($"{planName} check cancelled.");
+            RefreshStatusBar ();
+        };
+        SetStatus ($"{activity} · Esc to cancel");
         RefreshStatusBar ();
+        bool reviewStarted = false;
         bool admitted = _background.TryRun (async lifetimeToken =>
         {
             try
             {
-                BatchPlan plan = await build (lifetimeToken);
+                BatchPlan plan = await build (ct);
                 await DispatchAsync (() =>
                 {
-                    loading.Dispose ();
+                    reviewStarted = true;
+                    ReleaseCheck ();
+                    SetStatus ($"Review {planName.ToLowerInvariant ()} plan: {plan.Ready} ready · {plan.Skipped} skipped · Esc Cancel");
+                    RefreshStatusBar ();
                     using BatchPlanDialog review = new (plan);
                     App.Run (review);
                     if (review.Result == true && reservation!.TryTransfer (out ForegroundAdmission admission))
@@ -299,20 +356,35 @@ public sealed partial class App
                         SetStatus ($"{planName} plan cancelled.");
                         RefreshStatusBar ();
                     }
-                }, lifetimeToken);
+                }, ct, () => PreflightIdentityMatches (Volatile.Read (ref _preflightCts), request));
             }
-            catch (OperationCanceledException ex) when (lifetimeToken.IsCancellationRequested && ex.CancellationToken == lifetimeToken) { }
+            catch (OperationCanceledException ex) when (ct.IsCancellationRequested && ex.CancellationToken == ct) { }
             catch (Exception ex)
             {
                 await DispatchAsync (() =>
                 {
                     SetStatus ($"Could not review {planName.ToLowerInvariant ()} plan: {ex.Message}", isError: true);
                     RefreshStatusBar ();
-                }, lifetimeToken);
+                }, ct, () => reviewStarted || PreflightIdentityMatches (Volatile.Read (ref _preflightCts), request));
             }
-            finally { loading.Dispose (); reservation!.Dispose (); }
+            finally
+            {
+                await CleanupPreflightAsync (
+                    () => DispatchAsync (() => { Release (); RefreshStatusBar (); }, lifetimeToken,
+                        () => PreflightIdentityMatches (Volatile.Read (ref _preflightCts), request)),
+                    Release,
+                    () => { CancelSource (request); request.Dispose (); });
+            }
         });
-        if (!admitted) { loading.Dispose (); reservation!.Dispose (); ReportRejectedBackgroundAdmission (); }
+        if (!admitted) { Release (); request.Dispose (); ReportRejectedBackgroundAdmission (); }
+    }
+
+    private bool CancelPendingPreflight ()
+    {
+        Action? cancel = Interlocked.Exchange (ref _cancelPreflight, null);
+        if (cancel is null) return false;
+        cancel ();
+        return true;
     }
 
     private ListCounts CurrentCounts () => ListCounts.Capture (_state.Filtered, _state.Packages.Count,
@@ -353,6 +425,7 @@ public sealed partial class App
                 if (_state.Mode == AppMode.Search) ToggleSearchSelection (package);
                 else ToggleBatchSelect (package);
                 break;
+            case "clear-selection": ClearSelection (); break;
             case "batch":
                 if (_state.Mode == AppMode.Search) AskBatchInstall ();
                 else AskBatchUpgrade ();

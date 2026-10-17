@@ -450,7 +450,10 @@ public sealed class RunWorkflowTests
         public InstallerPreview? Preview { get; set; }
         public InstallModePref DefaultInstallMode { get; set; }
         public Func<CancellationToken, Task<OpResult>>? InstallResult { get; set; }
+        public Func<OperationKind, string, IProgress<OpProgress>?, CancellationToken, Task<OpResult>>? OperationResult { get; set; }
+        public Func<string?, CancellationToken, Task<IReadOnlyList<Package>>>? UpgradeQuery { get; set; }
         public Func<string?, IReadOnlyList<string>>? Versions { get; set; }
+        public Func<string, string?, CancellationToken, Task<IReadOnlyList<string>>>? VersionQuery { get; set; }
         public Func<string?, Exception?>? SearchFailure { get; set; }
         public Func<string?, IReadOnlyList<Package>>? SearchResults { get; set; }
         public Func<string, CancellationToken, Task<IReadOnlyList<Package>>>? CatalogQuery { get; set; }
@@ -470,13 +473,14 @@ public sealed class RunWorkflowTests
         }
         public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => InstalledFailure is null
             ? Task.FromResult (Installed) : Task.FromException<IReadOnlyList<Package>> (InstalledFailure);
-        public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Task.FromResult (Catalog);
+        public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => UpgradeQuery?.Invoke (source, ct) ?? Task.FromResult (Catalog);
         public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null) => Task.FromResult<PackageDetail?> (null);
         public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => SourceFailure is null
             ? Task.FromResult (Sources) : Task.FromException<IReadOnlyList<string>> (SourceFailure);
         public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
         {
             VersionSources.Add (source);
+            if (VersionQuery is not null) return VersionQuery (id, source, ct);
             return Task.FromResult (Versions?.Invoke (source) ?? (IReadOnlyList<string>)["1", "2"]);
         }
         public List<string?> PreviewSources { get; } = [];
@@ -485,21 +489,22 @@ public sealed class RunWorkflowTests
             PreviewSources.Add (source);
             return Task.FromResult (Preview);
         }
-        private Task<OpResult> Execute (OperationKind kind, string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
+        private Task<OpResult> Execute (OperationKind kind, string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null, IProgress<OpProgress>? progress = null)
         {
             Mutations++; LastKind = kind; LastSource = source; LastVersion = version; LastSettings = settings;
-            return InstallResult?.Invoke (ct) ?? Task.FromResult (CliBackend.CliResult (new () { Kind = kind, PackageId = id }, 0, "Completed"));
+            return OperationResult?.Invoke (kind, id, progress, ct) ?? InstallResult?.Invoke (ct) ?? Task.FromResult (CliBackend.CliResult (new () { Kind = kind, PackageId = id }, 0, "Completed"));
         }
-        public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => Execute (OperationKind.Install, id, version, settings, ct, source);
-        public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => Execute (OperationKind.Upgrade, id, null, null, ct, source);
+        public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => Execute (OperationKind.Install, id, version, settings, ct, source, progress);
+        public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => Execute (OperationKind.Upgrade, id, null, null, ct, source, progress);
         public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => Execute (OperationKind.Uninstall, id, null, null, ct);
         public Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct) => Execute (OperationKind.Download, id, version, null, ct);
         public Task<OpResult> RepairAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => Execute (OperationKind.Repair, id, null, null, ct);
         public Task<OpResult> PinAsync (string id, CancellationToken ct) => Execute (OperationKind.Pin, id, null, null, ct);
         public Task<OpResult> UnpinAsync (string id, CancellationToken ct) => Execute (OperationKind.Unpin, id, null, null, ct);
-        public bool CanVerify => false;
+        public InstallVerification? Verification { get; set; }
+        public bool CanVerify => Verification is not null;
         public bool CanRepair { get; set; }
-        public Task<InstallVerification?> VerifyInstalledAsync (string id, CancellationToken ct) => Task.FromResult<InstallVerification?> (null);
+        public Task<InstallVerification?> VerifyInstalledAsync (string id, CancellationToken ct) => Task.FromResult (Verification);
         public Task<IReadOnlyDictionary<string, PinState>> ListPinsAsync (CancellationToken ct) => PinFailure is null ? Task.FromResult (Pins) : Task.FromException<IReadOnlyDictionary<string, PinState>> (PinFailure);
         public Task<string> DescribeAsync (CancellationToken ct) => DescriptionFailure is null
             ? Task.FromResult ("Test backend") : Task.FromException<string> (DescriptionFailure);

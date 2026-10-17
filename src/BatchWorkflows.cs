@@ -51,12 +51,12 @@ public static class BatchPlanning
         return new ("Install", [.. items]);
     }
 
-    public static async Task<BatchPlan> ReviewUpgradesAsync (IBackend backend, IReadOnlySet<string> selected, CancellationToken ct)
+    public static async Task<BatchPlan> ReviewUpgradesAsync (IBackend backend, IReadOnlyCollection<string> selected, CancellationToken ct)
     {
         IReadOnlyList<Package> current = await backend.ListUpgradesAsync (null, ct);
         IReadOnlyDictionary<string, PinState> pins = await backend.ListPinsAsync (ct);
         List<BatchPlanItem> items = [];
-        foreach (string key in selected)
+        foreach (string key in selected.Distinct (StringComparer.OrdinalIgnoreCase))
         {
             int separator = key.IndexOf ('\u001f');
             string id = separator < 0 ? key : key [(separator + 1)..];

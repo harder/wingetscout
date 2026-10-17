@@ -156,14 +156,13 @@ public sealed class TabBar : View
 }
 
 /// <summary>
-/// Bottom status bar showing the source filter badge, pin filter badge, status message,
-/// and right-aligned context-aware hotkey hints. Replicates ui.rs::render_status_bar.
+/// Two footer rows keep operation outcomes and progress separate from filters and shortcuts.
 /// </summary>
 public sealed class StatusBar : View
 {
     public StatusBar ()
     {
-        Height = 1;
+        Height = 2;
         CanFocus = false;
         SchemeName = Theme.StatusSchemeName;
     }
@@ -207,11 +206,21 @@ public sealed class StatusBar : View
     {
         SetAttribute (new (Theme.TextPrimary, Theme.Surface));
 
-        for (int x = 0; x < Viewport.Width; x++)
+        for (int y = 0; y < Viewport.Height; y++)
         {
-            Move (x, 0);
-            AddStr (" ");
+            Move (0, y);
+            AddStr (new string (' ', Viewport.Width));
         }
+
+        string msg = ComposeMessage (Viewport.Width);
+        Attribute msgAttr = IsError
+            ? new (Theme.Danger, Theme.Surface, TextStyle.Bold)
+            : IsLoading || Op is not null
+                ? new (Theme.Accent, Theme.Surface)
+                : new (Theme.TextPrimary, Theme.Surface);
+        SetAttribute (msgAttr);
+        Move (0, 0);
+        AddStr (msg);
 
         int x0 = 0;
 
@@ -226,7 +235,7 @@ public sealed class StatusBar : View
             _ => new (Theme.TextOnAccent, Theme.TextSecondary, TextStyle.Bold)
         };
         SetAttribute (srcAttr);
-        Move (x0, 0);
+        Move (x0, 1);
         AddStr (srcLabel);
         x0 += srcLabel.Length + 1;
 
@@ -241,7 +250,7 @@ public sealed class StatusBar : View
                 _ => new (Theme.TextOnAccent, Theme.AccentDim, TextStyle.Bold)
             };
             SetAttribute (pinAttr);
-            Move (x0, 0);
+            Move (x0, 1);
             AddStr (pinLabel);
             x0 += pinLabel.Length + 1;
         }
@@ -252,22 +261,25 @@ public sealed class StatusBar : View
         if (selection.Length > 0 && x0 + selection.Length + 1 < Viewport.Width)
         {
             SetAttribute (new (Theme.TextOnAccent, Theme.Selection, TextStyle.Bold));
-            Move (x0, 0);
+            Move (x0, 1);
             AddStr (selection);
             x0 += selection.Length + 1;
         }
 
-        // Hotkey hints right-aligned. Reserve at least 8 columns for the status message; if the
-        // hints don't fit in the remaining width, drop lowest-priority pairs from the left first.
-        // Pairs are separated by a dim "│" glyph for visual grouping.
+        // The selection's primary action sits at the right end, so it survives truncation.
         string [] hintPairs = ComposeHintPairs ();
-        int hintsAvailable = Viewport.Width - x0 - 8;
+        int hintsAvailable = Viewport.Width - x0 - 1;
         (int firstHint, bool elided) = TruncateHintPairs (hintPairs, hintsAvailable);
         int hintsWidth = HintsWidth (hintPairs, firstHint, elided);
         int hintsStart = Math.Max (x0 + 1, Viewport.Width - hintsWidth);
 
-        // Status message between filters and hints. A running operation shows a determinate
-        // progress bar with its phase; an indeterminate load shows the braille spinner.
+        DrawHintPairs (hintsStart, hintPairs, firstHint, elided);
+
+        return true;
+    }
+
+    internal string ComposeMessage (int width)
+    {
         string msg = Message;
 
         if (Op is { } op)
@@ -280,25 +292,7 @@ public sealed class StatusBar : View
             msg = $"{spin} {msg}";
         }
 
-        int msgMax = hintsStart - x0 - 1;
-
-        if (msg.Length > msgMax)
-        {
-            msg = msgMax > 1 ? msg [..(msgMax - 1)] + "…" : string.Empty;
-        }
-
-        Attribute msgAttr = IsError
-                                ? new Attribute (Theme.Danger, Theme.Surface, TextStyle.Bold)
-                                : IsLoading || Op is not null
-                                    ? new Attribute (Theme.Accent, Theme.Surface)
-                                    : new Attribute (Theme.TextPrimary, Theme.Surface);
-        SetAttribute (msgAttr);
-        Move (x0, 0);
-        AddStr (msg);
-
-        DrawHintPairs (hintsStart, hintPairs, firstHint, elided);
-
-        return true;
+        return StatusOwnership.TruncateScalarSafe (msg, Math.Max (1, width));
     }
 
     private void DrawHintPairs (int xStart, string [] pairs, int first, bool elided)
@@ -310,7 +304,7 @@ public sealed class StatusBar : View
         if (elided)
         {
             SetAttribute (dim);
-            Move (x, 0);
+            Move (x, 1);
             AddStr ("… ");
             x += 2;
         }
@@ -318,14 +312,14 @@ public sealed class StatusBar : View
         for (int i = first; i < pairs.Length; i++)
         {
             SetAttribute (primary);
-            Move (x, 0);
+            Move (x, 1);
             AddStr (pairs [i]);
             x += pairs [i].Length;
 
             if (i < pairs.Length - 1)
             {
                 SetAttribute (dim);
-                Move (x, 0);
+                Move (x, 1);
                 AddStr (" │ ");
                 x += 3;
             }
@@ -379,6 +373,13 @@ public sealed class StatusBar : View
 
     private string [] ComposeHintPairs ()
     {
+        if (InputMode == InputMode.Normal)
+        {
+            if (Mode == AppMode.Upgrades && UpgradeSelectionCount > 0)
+                return ["/ Filter", "a Toggle visible", "Spc Select", "L Runs", "? Help", "Esc Clear sel", "m Actions", $"u Upgrade {UpgradeSelectionCount}"];
+            if (Mode == AppMode.Search && InstallSelectionCount > 0)
+                return ["/ Search", "a Toggle visible", "Spc Select", "L Runs", "? Help", "Esc Clear sel", "m Actions", $"i Install {InstallSelectionCount}"];
+        }
         return InputMode switch
         {
             InputMode.Search => _searchInputHints,
@@ -388,9 +389,6 @@ public sealed class StatusBar : View
             {
                 AppMode.Search => _searchHints,
 
-                // Upgrades adds the multi-select hints. They sit just before Help/Quit so the
-                // left-dropping truncation sheds the lower-value pairs (Filter/Source/Pin) first,
-                // keeping "Spc Select / U Upgrade sel" — the non-obvious batch flow — visible.
                 AppMode.Upgrades => _upgradeHints,
                 _ => _installedHints
             }
@@ -418,6 +416,7 @@ public sealed class VersionInputDialog : Runnable<string?>
 
         Label prompt = new () { X = 1, Y = 1, Text = "Version:" };
         _input = new () { X = Pos.Right (prompt) + 1, Y = 1, Width = Dim.Fill (1) };
+        Label error = new () { X = 1, Y = 2, Width = Dim.Fill (1), SchemeName = Theme.DangerSchemeName };
         _input.KeyDown += (_, key) =>
                           {
                               if (key.KeyCode == (KeyCode.U | KeyCode.CtrlMask))
@@ -428,13 +427,20 @@ public sealed class VersionInputDialog : Runnable<string?>
                           };
 
         Button confirm = new () { X = Pos.Center () - 8, Y = 4, Text = "_Confirm", IsDefault = true };
-        Button cancel = new () { X = Pos.Center () + 2, Y = 4, Text = "Cancel" };
+        Button cancel = new () { X = Pos.Right (confirm) + 2, Y = 4, Text = "Cancel" };
 
         confirm.Accepting += (_, e) =>
                              {
-                                 Result = _input.Text;
-                                 RequestStop ();
                                  e.Handled = true;
+                                 string version = _input.Text?.Trim () ?? string.Empty;
+                                 if (version.Length == 0)
+                                 {
+                                     error.Text = "Enter a version, or Cancel to go back.";
+                                     _input.SetFocus ();
+                                     return;
+                                 }
+                                 Result = version;
+                                 RequestStop ();
                              };
 
         cancel.Accepting += (_, e) =>
@@ -444,7 +450,7 @@ public sealed class VersionInputDialog : Runnable<string?>
                                 e.Handled = true;
                             };
 
-        Add (prompt, _input, confirm, cancel);
+        Add (prompt, _input, error, confirm, cancel);
         _input.SetFocus ();
     }
 }
@@ -481,7 +487,7 @@ public sealed class VersionPickerDialog : Runnable<string?>
         list.SelectedItem = versions.Count > 0 ? 0 : null;
 
         Button install = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Install", IsDefault = true };
-        Button cancel = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        Button cancel = new () { X = Pos.Right (install) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
 
         install.Accepting += (_, e) =>
                              {
@@ -548,7 +554,7 @@ public sealed class ThemePickerDialog : Runnable<string?>
         list.SelectedItem = currentIndex;
 
         Button apply = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Apply", IsDefault = true };
-        Button cancel = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        Button cancel = new () { X = Pos.Right (apply) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
 
         apply.Accepting += (_, e) =>
                            {
@@ -641,7 +647,7 @@ public sealed class AdvancedInstallDialog : Runnable<InstallSettings?>
         UpdateHints ();
 
         Button install = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Review…", IsDefault = true };
-        Button cancel = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        Button cancel = new () { X = Pos.Right (install) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
 
         install.Accepting += (_, e) =>
                              {
@@ -706,6 +712,7 @@ public sealed class HelpDialog : Runnable
             Height = Dim.Fill (1),
             Text = header + HelpText
         };
+        ReadOnlyTextNavigation.Configure (content);
         Add (content);
 
         Button close = new ()
@@ -751,11 +758,11 @@ public sealed class HelpDialog : Runnable
         Actions
           D             Backend and source diagnostics
           m / Shift+F10 Contextual action menu
-          i             Install
+          i             Install highlighted / review selected (Search)
           I             Install specific version (COM list, CLI version entry)
           A             Advanced install (scope / mode / arch / args)
           d             Download installer only (no install)
-          u             Upgrade
+          u             Upgrade highlighted / review selected (Upgrades)
           x             Uninstall
           V             Verify install (COM backend)
           R             Repair install (COM backend)
@@ -782,7 +789,32 @@ public sealed class HelpDialog : Runnable
         General
           ?             Toggle this help
           t             Theme picker (Amber / Sage / Moss & Olive / Dusty Rose)
-          Esc           Cancel a running operation; otherwise stay in the app
+          Esc           Cancel a check/operation, close input, or clear marked packages
           q / Ctrl+Q    Quit (Ctrl+Q works from fields and dialogs)
         """;
+}
+
+/// <summary>Keyboard scrolling for read-only text views, which do not bind navigation themselves.</summary>
+internal static class ReadOnlyTextNavigation
+{
+    internal static void Configure (Code text)
+    {
+        text.KeyDown += (_, key) =>
+        {
+            int page = Math.Max (1, text.Viewport.Height - 1);
+            switch (key.KeyCode)
+            {
+                case KeyCode.CursorDown: text.ScrollVertical (1); break;
+                case KeyCode.CursorUp: text.ScrollVertical (-1); break;
+                case KeyCode.PageDown: text.ScrollVertical (page); break;
+                case KeyCode.PageUp: text.ScrollVertical (-page); break;
+                case KeyCode.Home: text.ScrollVertical (-text.Viewport.Y); break;
+                case KeyCode.End: text.ScrollVertical (text.GetContentSize ().Height); break;
+                case KeyCode.CursorLeft: text.ScrollHorizontal (-1); break;
+                case KeyCode.CursorRight: text.ScrollHorizontal (1); break;
+                default: return;
+            }
+            key.Handled = true;
+        };
+    }
 }

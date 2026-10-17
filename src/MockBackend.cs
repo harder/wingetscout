@@ -31,6 +31,7 @@ public sealed class MockBackend : IBackend
 
     private readonly object _pinsGate = new ();
     private readonly Dictionary<string, PinState> _pins = new (StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _upgradedVersions = new (StringComparer.OrdinalIgnoreCase);
 
     public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct)
     {
@@ -60,7 +61,7 @@ public sealed class MockBackend : IBackend
                 template => template.AvailableVersion is not null
                             && (string.IsNullOrEmpty (source)
                                 || template.Source.Equals (source, StringComparison.OrdinalIgnoreCase)),
-                ct));
+                ct).Where (package => package.AvailableVersion is not null).ToArray ());
 
     public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct)
     {
@@ -248,6 +249,13 @@ public sealed class MockBackend : IBackend
         ct.ThrowIfCancellationRequested ();
         await SimulateProgressAsync (progress, downloads: true, ct);
 
+        PackageTemplate? template = InstalledTemplates.FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+            && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
+        if (template?.AvailableVersion is { } upgradedVersion)
+        {
+            lock (_pinsGate) _upgradedVersions[$"{template.Source}\u001f{template.Id}"] = upgradedVersion;
+        }
+
         return new ()
         {
             Operation = new () { Kind = OperationKind.Upgrade, PackageId = id },
@@ -361,17 +369,22 @@ public sealed class MockBackend : IBackend
         }
     }
 
-    private static Package CreatePackage (
+    private Package CreatePackage (
         PackageTemplate template,
-        IReadOnlyDictionary<string, PinState> pins) => new ()
+        IReadOnlyDictionary<string, PinState> pins)
     {
-        Id = template.Id,
-        Name = template.Name,
-        Version = template.Version,
-        Source = template.Source,
-        AvailableVersion = template.AvailableVersion,
-        PinState = pins.GetValueOrDefault (template.Id, PinState.Unpinned)
-    };
+        string? upgradedVersion;
+        lock (_pinsGate) _upgradedVersions.TryGetValue ($"{template.Source}\u001f{template.Id}", out upgradedVersion);
+        return new ()
+        {
+            Id = template.Id,
+            Name = template.Name,
+            Version = upgradedVersion ?? template.Version,
+            Source = template.Source,
+            AvailableVersion = upgradedVersion is null ? template.AvailableVersion : null,
+            PinState = pins.GetValueOrDefault (template.Id, PinState.Unpinned)
+        };
+    }
 
     private sealed record PackageTemplate (
         string Id,
