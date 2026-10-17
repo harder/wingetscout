@@ -33,9 +33,9 @@ for package-changing tests. Wait for abandoned workers and their UI cleanup whil
 the UI stays live, so shutdown cannot mask a late callback.
 
 Update the [usage guide](docs/usage.md), README shortcuts, and
-[website](docs/website.md) when controls change. Track changes after the latest
-release in [1.1.0 release notes](docs/releases/1.1.0.md), clearly distinguishing main from
-released downloads. Refresh the mock captures when the visible UI changes.
+[website](docs/website.md) when controls change. Add versioned notes under `docs/releases/` for user-facing changes and clearly
+distinguish unreleased features from published downloads. Refresh the mock captures
+when the visible UI changes.
 
 The repository selects Microsoft.Testing.Platform in `global.json`. Pass the project with
 `--project` as shown above; the older positional `dotnet test tests/...csproj` form is not

@@ -10,7 +10,7 @@
 
 [Guides](https://github.com/harder/wingetscout/blob/main/docs/index.md) · [Usage](https://github.com/harder/wingetscout/blob/main/docs/usage.md) · [Architecture](https://github.com/harder/wingetscout/blob/main/docs/architecture.md)
 
-**In 1.1.0:** Clearer batch selection, dedicated progress, refreshed results, reviewed retries, copyable diagnostics, and clearer advanced options. See the [release notes](https://github.com/harder/wingetscout/blob/main/docs/releases/1.1.0.md). This guide and its sample captures describe 1.1.0; published downloads are available from [GitHub Releases](https://github.com/harder/wingetscout/releases).
+**New in [v1.1.0](https://github.com/harder/wingetscout/releases/tag/v1.1.0):** Clearer batch selection, dedicated progress, refreshed results, reviewed retries, copyable diagnostics, and clearer advanced options. See the [release notes](https://github.com/harder/wingetscout/blob/main/docs/releases/1.1.0.md). This guide and its sample captures describe 1.1.0; published downloads are available from [GitHub Releases](https://github.com/harder/wingetscout/releases).
 
 ![Scout search results and package details in the Sage theme, using sample data](site/media/scout-sage-search.png)
 

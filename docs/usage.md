@@ -4,8 +4,8 @@ For installation and a quick start, see the [README](../README.md#install).
 Press `?` in Scout for the current in-app shortcut reference. This guide
 explains the main workflows and where their results are stored.
 
-This guide follows current `main`. The batch, retry, and diagnostic improvements
-listed in [1.1.0 release notes](releases/1.1.0.md) are not yet in the v1.0.3 downloads.
+This guide describes v1.1.0. See the [release notes](releases/1.1.0.md) for
+the batch, retry, and diagnostic improvements added since v1.0.3.
 
 ## Navigate and find packages
 
