@@ -453,6 +453,7 @@ public sealed class RunWorkflowTests
         public Func<OperationKind, string, IProgress<OpProgress>?, CancellationToken, Task<OpResult>>? OperationResult { get; set; }
         public Func<string?, CancellationToken, Task<IReadOnlyList<Package>>>? UpgradeQuery { get; set; }
         public Func<string?, IReadOnlyList<string>>? Versions { get; set; }
+        public Func<string, string?, CancellationToken, Task<IReadOnlyList<string>>>? VersionQuery { get; set; }
         public Func<string?, Exception?>? SearchFailure { get; set; }
         public Func<string?, IReadOnlyList<Package>>? SearchResults { get; set; }
         public Func<string, CancellationToken, Task<IReadOnlyList<Package>>>? CatalogQuery { get; set; }
@@ -479,6 +480,7 @@ public sealed class RunWorkflowTests
         public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
         {
             VersionSources.Add (source);
+            if (VersionQuery is not null) return VersionQuery (id, source, ct);
             return Task.FromResult (Versions?.Invoke (source) ?? (IReadOnlyList<string>)["1", "2"]);
         }
         public List<string?> PreviewSources { get; } = [];

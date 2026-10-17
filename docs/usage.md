@@ -22,6 +22,7 @@ Upgrades.
 In narrow windows, the list omits the ID column and, when necessary, the
 Upgrades source column so package names and versions remain visible. Full IDs
 and sources stay in Package Details; widening the window restores the columns.
+The list title shows the active sort field and direction, even if its column is hidden.
 Changing themes or cycling pin filters keeps the highlighted package when it
 is still visible. Help supports arrow keys, PageUp/PageDown, and Home/End.
 

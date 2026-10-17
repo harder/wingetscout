@@ -6,11 +6,15 @@ namespace WinGetScout.Tests;
 public sealed class UxInteractionTests
 {
     [Theory]
-    [InlineData ("escape")]
-    [InlineData ("tab")]
-    [InlineData ("source")]
-    [InlineData ("refresh")]
-    public void AbandonedPlanChecksCannotOpenLateReviews (string action)
+    [InlineData ("escape", false)]
+    [InlineData ("tab", false)]
+    [InlineData ("source", false)]
+    [InlineData ("refresh", false)]
+    [InlineData ("escape", true)]
+    [InlineData ("tab", true)]
+    [InlineData ("source", true)]
+    [InlineData ("refresh", true)]
+    public void AbandonedPlanChecksCannotOpenLateReviews (string action, bool fails)
     {
         TaskCompletionSource<BatchPlan> pending = new (TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken checkToken = default;
@@ -20,6 +24,7 @@ public sealed class UxInteractionTests
         Func<CancellationToken, Task<BatchPlan>> build = ct => { checkToken = ct; started = true; return pending.Task; };
         ui.Invoke ("ReviewOperationPlan", "Checking selected upgrades…", "Upgrade", build);
         ui.PumpUntil (() => started);
+        CancellationTokenSource request = ui.Get<CancellationTokenSource> ("_preflightCts");
         ui.Press (action switch
         {
             "escape" => new Key (KeyCode.Esc), "tab" => new Key ('2'),
@@ -37,14 +42,109 @@ public sealed class UxInteractionTests
             }
             return true;
         });
-        pending.SetResult (new ("Upgrade", [new (Tool (), true, "1 → 2")]));
-        ui.PumpUntil (() => !ui.State.Loading);
+        Task completion = ui.CaptureBackgroundWorkCompletion ();
+        Assert.False (completion.IsCompleted);
+        if (fails) pending.SetException (new InvalidOperationException ("Abandoned plan failure"));
+        else pending.SetResult (new ("Upgrade", [new (Tool (), true, "1 → 2")]));
+        ui.PumpUntil (() => completion.IsCompleted);
+        Assert.True (completion.IsCompletedSuccessfully);
+        Assert.False (ui.State.Loading);
+        Assert.Throws<ObjectDisposedException> (() => request.Token);
+        Assert.DoesNotContain ("Abandoned plan failure", ui.State.StatusMessage);
         Assert.True (cancelled, "Abandoning a pending plan should cancel its backend request.");
         Assert.True (releasedBeforeCompletion, "A backend that ignores cancellation must not lock the next workflow.");
         Assert.False (lateReview);
         Assert.Equal (0, backend.Mutations);
         Assert.True (ui.Get<ForegroundWorkflowCoordinator> ("_foreground").TryReserveOperation (out OperationReservation? next));
         next!.Dispose ();
+    }
+
+    [Theory]
+    [InlineData ("escape", false)]
+    [InlineData ("tab", false)]
+    [InlineData ("source", false)]
+    [InlineData ("refresh", false)]
+    [InlineData ("escape", true)]
+    [InlineData ("tab", true)]
+    [InlineData ("source", true)]
+    [InlineData ("refresh", true)]
+    public void AbandonedVersionChecksFinishCleanupWithoutOpeningLateDialogs (string action, bool fails)
+    {
+        TaskCompletionSource<IReadOnlyList<string>> pending = new (TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<CancellationToken> started = new (TaskCreationOptions.RunContinuationsAsynchronously);
+        RecordingBackend backend = new () { VersionQuery = (_, _, ct) => { started.SetResult (ct); return pending.Task; } };
+        using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend);
+        ui.State.SearchQuery = "Example";
+        ui.Press (new Key ('I'));
+        ui.PumpUntil (() => started.Task.IsCompleted);
+        CancellationTokenSource request = ui.Get<CancellationTokenSource> ("_preflightCts");
+        Task completion = ui.CaptureBackgroundWorkCompletion ();
+        ui.Press (action switch
+        {
+            "escape" => new Key (KeyCode.Esc), "tab" => new Key ('2'),
+            "source" => new Key ('f'), _ => new Key ('r')
+        });
+        Assert.True (request.IsCancellationRequested);
+        ForegroundWorkflowCoordinator foreground = ui.Get<ForegroundWorkflowCoordinator> ("_foreground");
+        Assert.True (foreground.TryReserveOperation (out OperationReservation? replacement));
+        replacement!.Dispose ();
+        bool lateDialog = false;
+        ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+        {
+            if (ui.Application.TopRunnable is { } dialog && !ReferenceEquals (dialog, ui.Window))
+            {
+                lateDialog = true; dialog.RequestStop ();
+            }
+            return true;
+        });
+        if (fails) pending.SetException (new InvalidOperationException ("Abandoned version failure"));
+        else pending.SetResult (["2", "1"]);
+        ui.PumpUntil (() => completion.IsCompleted);
+        Assert.True (completion.IsCompletedSuccessfully);
+        Assert.Throws<ObjectDisposedException> (() => request.Token);
+        Assert.False (lateDialog);
+        Assert.DoesNotContain ("Abandoned version failure", ui.State.StatusMessage);
+        Assert.Equal (0, backend.Mutations);
+        Assert.True (foreground.TryReserveOperation (out OperationReservation? next));
+        next!.Dispose ();
+    }
+
+    [Theory]
+    [InlineData (false)]
+    [InlineData (true)]
+    public void AbandonedPlanCleanupCannotReleaseOrOverwriteAReplacementCheck (bool fails)
+    {
+        TaskCompletionSource<BatchPlan> abandoned = new (TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<BatchPlan> replacement = new (TaskCreationOptions.RunContinuationsAsynchronously);
+        using ListNavigationTests.UiSession ui = new (AppMode.Upgrades, 1, new RecordingBackend ());
+        bool firstStarted = false, secondStarted = false;
+        Func<CancellationToken, Task<BatchPlan>> first = _ => { firstStarted = true; return abandoned.Task; };
+        Func<CancellationToken, Task<BatchPlan>> second = _ => { secondStarted = true; return replacement.Task; };
+        ui.Invoke ("ReviewOperationPlan", "First check", "Upgrade", first);
+        ui.PumpUntil (() => firstStarted);
+        Task firstCompletion = ui.CaptureBackgroundWorkCompletion ();
+        ui.Press (KeyCode.Esc);
+        ui.Invoke ("ReviewOperationPlan", "Replacement check", "Upgrade", second);
+        ui.PumpUntil (() => secondStarted);
+        CancellationTokenSource current = ui.Get<CancellationTokenSource> ("_preflightCts");
+        if (fails) abandoned.SetException (new InvalidOperationException ("Obsolete check failed"));
+        else abandoned.SetResult (new ("Upgrade", []));
+        ui.PumpUntil (() => firstCompletion.IsCompleted);
+        Assert.True (firstCompletion.IsCompletedSuccessfully);
+        Assert.Same (current, ui.Get<CancellationTokenSource> ("_preflightCts"));
+        Assert.True (ui.State.Loading);
+        Assert.Contains ("Replacement check", ui.State.StatusMessage);
+        Assert.False (current.IsCancellationRequested);
+        Assert.False (ui.Get<ForegroundWorkflowCoordinator> ("_foreground").TryReserveOperation (out _));
+        Task secondCompletion = ui.CaptureBackgroundWorkCompletion ();
+        ui.Press (KeyCode.Esc);
+        Assert.True (current.IsCancellationRequested);
+        replacement.SetResult (new ("Upgrade", []));
+        ui.PumpUntil (() => secondCompletion.IsCompleted);
+        Assert.True (secondCompletion.IsCompletedSuccessfully);
+        Assert.False (ui.State.Loading);
+        Assert.Throws<ObjectDisposedException> (() => current.Token);
+        Assert.Same (ui.Window, ui.Application.TopRunnable);
     }
 
     [Theory]

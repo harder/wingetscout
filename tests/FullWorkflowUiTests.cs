@@ -527,6 +527,7 @@ public sealed class FullWorkflowUiTests
         {
             ui.Press (new Key ('S'));
             Assert.True (ui.Table.GetContentSize ().Width <= ui.Table.Viewport.Width);
+            AssertVisibleSort (ui);
             foreach (int column in Enumerable.Range (0, ui.Table.Table.Columns))
             {
                 ColumnStyle style = ui.Table.Style.GetOrCreateColumnStyle (column);
@@ -542,6 +543,49 @@ public sealed class FullWorkflowUiTests
             column => Assert.True (ui.Table.Style.GetOrCreateColumnStyle (column).Visible));
         ui.Press (KeyCode.CursorUp);
         ui.AssertSelection ();
+    }
+
+    [Theory]
+    [InlineData (AppMode.Search, SortDir.Asc)]
+    [InlineData (AppMode.Search, SortDir.Desc)]
+    [InlineData (AppMode.Installed, SortDir.Asc)]
+    [InlineData (AppMode.Installed, SortDir.Desc)]
+    [InlineData (AppMode.Upgrades, SortDir.Asc)]
+    [InlineData (AppMode.Upgrades, SortDir.Desc)]
+    public void HiddenIdSortStaysVisibleWithMarksEmptyResultsAndResize (AppMode mode, SortDir direction)
+    {
+        using ListNavigationTests.UiSession ui = new (mode, 40);
+        ui.Window.Width = 80; ui.Window.Height = 24;
+        ui.Press (new Key ('a'));
+        ui.State.LocalFilter = "Package 000";
+        ui.State.ApplyFilter (); ui.Invoke ("RefreshTable");
+        for (int i = 0; i < (direction == SortDir.Asc ? 3 : 4); i++) ui.Press (new Key ('S'));
+        Assert.Equal (SortField.Id, ui.State.SortField);
+        Assert.Equal (direction, ui.State.SortDir);
+        int column = Array.FindIndex (ui.Table.Table!.ColumnNames, name => name.StartsWith ("Id", StringComparison.Ordinal));
+        Assert.False (ui.Table.Style.GetOrCreateColumnStyle (column).Visible);
+        AssertVisibleSort (ui);
+        ui.State.LocalFilter = "No matching package";
+        ui.State.ApplyFilter (); ui.Invoke ("RefreshTable");
+        Assert.Empty (ui.State.Filtered);
+        AssertVisibleSort (ui);
+        foreach (int width in new [] { 190, 80 })
+        {
+            ui.Window.Width = width;
+            ui.Application.LayoutAndDraw ();
+            AssertVisibleSort (ui);
+        }
+    }
+
+    private static void AssertVisibleSort (ListNavigationTests.UiSession ui)
+    {
+        if (ui.State.SortField == SortField.None) return;
+        string label = ui.State.SortField == SortField.AvailableVersion ? "Available" : ui.State.SortField.ToString ();
+        string expected = $"{label} {(ui.State.SortDir == SortDir.Asc ? "↑" : "↓")}";
+        FrameView frame = ui.Get<FrameView> ("_listFrame");
+        // Reserve border/title padding so a suffix beyond the visible pane cannot satisfy this check.
+        string visibleTitle = StatusOwnership.TruncateScalarSafe (frame.Title, Math.Max (1, frame.Frame.Width - 4));
+        Assert.Contains (expected, visibleTitle);
     }
 
     internal static void Click (ListNavigationTests.UiSession ui, View dialog, string text)

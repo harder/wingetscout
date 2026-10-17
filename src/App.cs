@@ -1000,7 +1000,15 @@ public sealed partial class App : Window
 
     private void UpdateListTitle ()
     {
-        string title = $" {_state.Mode} ({CurrentCounts ().Label}) ";
+        string sortLabel = _state.SortField switch
+        {
+            SortField.None => string.Empty,
+            SortField.AvailableVersion => "Available",
+            _ => _state.SortField.ToString ()
+        };
+        // Put sorting before counts so compact panes and long selection labels cannot hide it.
+        string sort = sortLabel.Length == 0 ? string.Empty : $" · {HeaderWithSort (sortLabel, _state.SortField)}";
+        string title = $" {_state.Mode}{sort} ({CurrentCounts ().Label}) ";
 
         if (_state.Mode != AppMode.Search && _state.PinFilter != PinFilter.All)
         {
