@@ -1,16 +1,16 @@
 {
-    "version": "1.0.3",
+    "version": "1.1.0",
     "description": "Interactive Windows terminal app for searching, installing, and updating WinGet packages",
     "homepage": "https://wingetscout.com/",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/harder/wingetscout/releases/download/v1.0.3/wingetscout-1.0.3-win-x64.zip",
-            "hash": "6f11d3c5e10843158a6a13cc1f39bdf13f1d10747475d2803e88a74b97c5fc9b"
+            "url": "https://github.com/harder/wingetscout/releases/download/v1.1.0/wingetscout-1.1.0-win-x64.zip",
+            "hash": "913168993d81226a051aeb90f603a4f7d9f75ae407c1f3fd50e6b5594b853ba9"
         },
         "arm64": {
-            "url": "https://github.com/harder/wingetscout/releases/download/v1.0.3/wingetscout-1.0.3-win-arm64.zip",
-            "hash": "92a8b2e2e78b2cae92253af6b0bbd16757061d7555839e633480dc4e56469d9c"
+            "url": "https://github.com/harder/wingetscout/releases/download/v1.1.0/wingetscout-1.1.0-win-arm64.zip",
+            "hash": "26231ccae5617f0cf61724cde3e17d632401d5a8cca3efc1692a66d35aefc39a"
         }
     },
     "bin": "wingetscout\\wingetscout.exe",

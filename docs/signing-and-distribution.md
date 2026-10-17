@@ -16,10 +16,10 @@ GitHub releases can ship while a WinGet submission is under review. Bump
 main ancestry, stages and verifies all assets, and publishes the release.
 Add version-specific notes in `docs/releases/<version>.md`; the workflow includes
 them alongside download instructions and GitHub's generated change list.
-Use [1.1.0 release notes](releases/1.1.0.md) as the next release's feature inventory. At
-release time, move its changes into versioned notes, update the README and website
-release/preview notices and download links, and refresh UI captures from the
-released source. Do not describe main-only features as part of an older download.
+Use the [1.1.0 release notes](releases/1.1.0.md) as an example of a feature
+inventory. For each release, add versioned notes, update the README and website
+release notices and download links, and refresh UI captures from that source.
+Do not describe main-only features as part of an older download.
 Keep published assets immutable: an existing WinGet manifest's URLs and hashes
 must continue to identify the same bytes. Publish a new version for fixes.
 
@@ -28,7 +28,7 @@ their three-file WinGet manifest set as the `winget-manifests-<version>` workflo
 artifact. To regenerate and validate that set locally:
 
 ```powershell
-$version = '1.0.3' # substitute an already published release
+$version = '1.1.0' # substitute an already published release
 pwsh ./packaging/prepare-winget-submission.ps1 -Version $version
 ```
 

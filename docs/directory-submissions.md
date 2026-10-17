@@ -1,14 +1,11 @@
 # Other places to list Scout for WinGet
 
-This page contains the submission copy and steps for Scout for WinGet 1.0.3. Use the current release and update any version-specific links before a later submission. The WinGet community package PR has been submitted, but the package is not available from the community source until that PR is merged and indexed.
+This page contains the submission copy and steps for Scout for WinGet 1.1.0. Use the current release and update any version-specific links before a later submission. The WinGet community package PR has been submitted, but the package is not available from the community source until that PR is merged and indexed.
 
-The [improvements since v1.0.3](releases/1.1.0.md) are merged into main but have not
-been released. Keep the v1.0.3 submission copy below tied to that download. After
-the next release, update the version, assets, hashes, and screenshots together;
-the new feature copy can highlight selection-aware batches, per-package progress,
-reviewed retries, contextual actions, and copyable backend/source diagnostics.
-Current website captures show main's development preview and should be labelled
-accordingly if used before that release.
+The [1.1.0 release notes](releases/1.1.0.md) cover selection-aware batches,
+per-package progress, reviewed retries, contextual actions, backend/source
+diagnostics, and report exports. The website captures show the 1.1.0 UI with sample
+packages; both demo plans are cancelled without executing packages.
 
 ## 1. Scoop
 
@@ -35,16 +32,16 @@ When eligible:
 
 1. Search [Extras issues](https://github.com/ScoopInstaller/Extras/issues) and [pull requests](https://github.com/ScoopInstaller/Extras/pulls) for `wingetscout`.
 2. Open an Extras [package request](https://github.com/ScoopInstaller/Extras/issues/new/choose) and fill the fields with the name, short description, homepage, both release ZIP links, and genuine popularity evidence. Do not claim stars or forks that the repository lacks.
-3. Wait for a maintainer's response. Fork `ScoopInstaller/Extras`, put `wingetscout.json` in its `bucket/` directory, and open a PR titled `wingetscout: Add version 1.0.3`.
+3. Wait for a maintainer's response. Fork `ScoopInstaller/Extras`, put `wingetscout.json` in its `bucket/` directory, and open a PR titled `wingetscout: Add version 1.1.0`.
 4. Run the install/uninstall test above against the manifest in that fork. After opening the PR, comment `/verify` to start Scoop's manifest verifier, then address any review feedback.
 
 Copy for the package request:
 
 > **Name:** Scout for WinGet (`wingetscout`)<br>
-> **Description:** Interactive Windows terminal app for searching, inspecting, installing, and updating WinGet packages. It also supports pins, saved package sets, run history, and scheduled update checks.<br>
+> **Description:** Interactive Windows terminal app for searching, inspecting, installing, and updating WinGet packages. It also supports pins, reviewed batch actions and retries, run diagnostics, saved sets, and scheduled update checks.<br>
 > **Homepage:** https://wingetscout.com/<br>
-> **x64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.0.3/wingetscout-1.0.3-win-x64.zip<br>
-> **ARM64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.0.3/wingetscout-1.0.3-win-arm64.zip<br>
+> **x64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.1.0/wingetscout-1.1.0-win-x64.zip<br>
+> **ARM64 ZIP:** https://github.com/harder/wingetscout/releases/download/v1.1.0/wingetscout-1.1.0-win-arm64.zip<br>
 > **Source:** https://github.com/harder/wingetscout<br>
 > **Popularity/repute:** Add verifiable usage, reviews, stars, or forks when eligible.
 
@@ -91,11 +88,11 @@ Use [Terminal Trove's submission form](https://terminaltrove.com/submit/). It pr
 
 **2–3 standout features (60–400 characters):**
 
-> Review multiple installs or upgrades before running them; save package sets for later; schedule read-only update checks with optional Windows notifications.
+> Review selected installs or upgrades with per-package progress; inspect run diagnostics and retry unfinished requests after fresh review; copy or save backend and source reports.
 
 **What makes this different (50–500 characters):**
 
-> Scout keeps package lists, details, and actions together in a terminal UI, reducing command memorization and context switching. It combines WinGet's structured COM API with a CLI fallback, and shows the outcome of recent runs.
+> Scout keeps package lists, details, and actions together in a terminal UI, reducing command memorization and context switching. It combines WinGet's structured COM API with a CLI fallback, keeps selection scope and progress visible, and offers diagnostic reports and reviewed retries for unfinished work.
 
 **Who is this for / when to use it (60–300 characters):**
 
