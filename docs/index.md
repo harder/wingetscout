@@ -3,9 +3,15 @@
 Start with the [README](../README.md) for installation and a quick tour, or
 [CONTRIBUTING](../CONTRIBUTING.md) to build and test a change.
 
+These guides describe current `main`. The latest published version is
+[v1.0.3](https://github.com/harder/wingetscout/releases/tag/v1.0.3);
+[improvements since that release](releases/1.1.0.md) require a source build until
+the next release is published.
+
 | Guide | Use it for |
 | --- | --- |
-| [Usage](usage.md) | Navigation, package actions, saved sets, and update checks |
+| [1.1.0 release notes](releases/1.1.0.md) | Upcoming batch UX, reviewed retries, diagnostics, and advanced options |
+| [Usage](usage.md) | Navigation, selections, batch review, run reports, retries, and update checks |
 | [Architecture](architecture.md) | Backend, UI, workflow, Native AOT, and release code |
 | [Signing and distribution](signing-and-distribution.md) | Releases, WinGet manifest updates, and portable/MSIX signing |
 | [Directory submissions](directory-submissions.md) | Other listing and package directory submissions |

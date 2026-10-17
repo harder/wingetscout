@@ -4,6 +4,9 @@ For installation and a quick start, see the [README](../README.md#install).
 Press `?` in Scout for the current in-app shortcut reference. This guide
 explains the main workflows and where their results are stored.
 
+This guide follows current `main`. The batch, retry, and diagnostic improvements
+listed in [1.1.0 release notes](releases/1.1.0.md) are not yet in the v1.0.3 downloads.
+
 ## Navigate and find packages
 
 The **Search**, **Installed**, and **Upgrades** tabs share a package list and
@@ -39,6 +42,8 @@ and `R` repairs it. `p` pins or unpins a package.
 Pinned packages must be unpinned before upgrading. If pin status is unavailable,
 refresh successfully before starting an upgrade.
 
+## Advanced install options
+
 Advanced options explain whether each setting is a default or an explicit
 override. **Review** fetches the installer preview before the final confirmation;
 it does not install anything. The confirmation separates requested options from
@@ -46,6 +51,19 @@ the selected installer. A known architecture or scope conflict blocks the instal
 so you can change the option. If no preview is available, the confirmation says
 that WinGet will resolve the options during execution. The COM backend's default
 mode is Silent; the CLI leaves the mode to WinGet.
+
+## Select and run a batch
+
+For a typical upgrade batch:
+
+1. Open Upgrades with `3` and mark packages with `Space`.
+2. Press `u` or `U` to review the entire selection. Check the hidden-selection
+   count if you have filtered the list or changed sources.
+3. Inspect ready/skipped reasons. Enter or double-click opens a package's Details;
+   close Details to return to the plan.
+4. Use Tab to reach **Upgrade (N)** and approve it to run the ready packages.
+5. Watch the dedicated progress row, then review results. The inventory refreshes
+   while results are open. Use recent runs (`L`) for diagnostics or a reviewed retry.
 
 On Search or Upgrades, `Space` marks a row and `a` toggles all visible
 rows. `B` reviews selected Search results before installation; `U`
@@ -79,6 +97,8 @@ or catalog lookups cannot authorize an operation.
 `Esc` cancels a pending plan check. Switching tabs or sources, or refreshing the
 inventory, also discards that check so a late result cannot open an outdated review.
 
+## Contextual actions and other controls
+
 Press `m` or `Shift+F10`, or right-click a package row, to open its contextual
 actions. The menu reflects the current tab, backend capabilities, and known pin
 state. Package-changing actions still open their usual confirmation or review.
@@ -86,7 +106,10 @@ state. Package-changing actions still open their usual confirmation or review.
 `o` opens the package homepage and `c` opens release notes when the
 selected package provides those links. `e` exports the visible rows to
 CSV. `t` chooses a theme; `L` opens recent run results. `Esc` cancels
-the current input or operation as appropriate, and `q` quits.
+the current input or operation as appropriate, and `q` quits. `Ctrl+Q` quits from
+fields or any nested dialog, including Details inside a plan.
+
+## Run history, diagnostics, and retries
 
 In recent runs, open a run and choose **Details** (or press Enter on a package)
 to inspect timing, source, versions, install options, backend, CLI exit codes,
@@ -100,6 +123,8 @@ and pins as applicable, then show a review with ready and skipped entries.
 Nothing runs until you approve that review. Original results stay in history.
 Pin changes and older entries without a recorded request have no retry action.
 An explicit version is skipped if the backend cannot confirm its availability.
+
+### Copy or save a report
 
 Use **Copy**, **Save text**, or **Save JSON** in a run's diagnostic view to keep
 the displayed package's report. Save lets you choose a file and asks before
@@ -154,3 +179,20 @@ actions. Pin management uses the CLI with either backend.
 For a Windows activation check, run `wingetscout.exe --comdiag` from the
 complete published folder. Developers can see the backend boundaries in
 the [architecture guide](architecture.md).
+
+## Troubleshoot a workflow
+
+- **Marks seem to be missing:** Read the selected/hidden count. Filtering, changing
+  sources, or searching again can hide marked packages without clearing them.
+  Review the full selection, or use **Clear selection** in Actions to start over.
+- **An upgrade is unavailable:** Pinned packages must be unpinned first. If pin
+  state is stale or unavailable, refresh successfully before reviewing an upgrade.
+- **A batch only partly completed:** Inspect its results in `L`. Use **Retry
+  unfinished (N)** to recheck retryable requests; the new review explains any skips.
+- **A list or source failed to load:** Open `D`, refresh the read-only checks, and
+  copy or save the completed report. A source returning no matches is different
+  from a query failure. A source check does not prove installation will succeed.
+- **Text looks different between terminal hosts:** Windows Terminal is recommended.
+  Terminal palette and color-support settings affect rendering; `NO_COLOR` or
+  `TERM=dumb` in the launching environment can reduce the palette. Try `t` for
+  another theme and include the terminal host when reporting a display problem.

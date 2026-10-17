@@ -23,6 +23,20 @@ Building the actual AOT binary requires a **Windows host** with Visual Studio Bu
 The [architecture guide](docs/architecture.md) maps the backend, UI, workflow,
 and release code before you change their boundaries.
 
+For UI changes, cover the interaction through the existing driverless UI sessions:
+`BatchClarityUiTests` and `BatchExecutionUiTests` exercise selection, approval,
+progress, refresh, and retry; `UxInteractionTests` covers cancellation and late
+responses; `FullWorkflowUiTests` covers dialogs, options, and compact layouts;
+`DiagnosticsUiTests` covers read-only reports and copy/save actions. Keep the
+review-before-execute boundary intact. Use mock or controlled recording backends
+for package-changing tests. Wait for abandoned workers and their UI cleanup while
+the UI stays live, so shutdown cannot mask a late callback.
+
+Update the [usage guide](docs/usage.md), README shortcuts, and
+[website](docs/website.md) when controls change. Track changes after the latest
+release in [1.1.0 release notes](docs/releases/1.1.0.md), clearly distinguishing main from
+released downloads. Refresh the mock captures when the visible UI changes.
+
 The repository selects Microsoft.Testing.Platform in `global.json`. Pass the project with
 `--project` as shown above; the older positional `dotnet test tests/...csproj` form is not
 accepted by this runner. IDE test discovery likewise requires Microsoft.Testing.Platform support.
@@ -55,7 +69,8 @@ an installed Identity MSIX to check its activation path.
 ## Filing issues
 
 - **Bugs**: include the failing scenario, OS + architecture (x64 vs arm64), and where possible a `--dump` trace (e.g. `wingetscout --dump search vscode > dump.txt`).
-- **UI gaps**: describe the expected behavior and include a screenshot when useful.
+- **UI gaps**: describe the expected behavior, terminal host and window size, and include a screenshot when useful. For batches, include selected/hidden counts and whether the issue occurred in review, execution, results, or retry.
+- **Operation or source failures**: use `L` for per-package diagnostics or `D` for backend/source checks. Both viewers can copy reports or save text/JSON to attach to the issue.
 - **Terminal.Gui regressions**: include the version you upgraded from and to. The Terminal.Gui compatibility tests in `tests/ParserTests.cs` should ideally catch these — if a regression slipped through, an extra test for it is highly welcome.
 
 ## Code style

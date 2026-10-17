@@ -10,6 +10,8 @@
 
 [Guides](https://github.com/harder/wingetscout/blob/main/docs/index.md) · [Usage](https://github.com/harder/wingetscout/blob/main/docs/usage.md) · [Architecture](https://github.com/harder/wingetscout/blob/main/docs/architecture.md)
 
+**Coming in 1.1.0:** The latest release is [v1.0.3](https://github.com/harder/wingetscout/releases/tag/v1.0.3). This README and the guides describe current `main`, including improvements made after that release. See the [1.1.0 release notes](https://github.com/harder/wingetscout/blob/main/docs/releases/1.1.0.md); build from source to try them before publication. Screenshots and demos below show the 1.1.0 UI with sample packages.
+
 ![Scout search results and package details in the Sage theme, using sample data](site/media/scout-sage-search.png)
 
 [Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). These captures use Scout's safe `--mock` mode and show sample packages.
@@ -48,10 +50,13 @@ Portable downloads are currently unsigned. If Windows shows a SmartScreen warnin
 ## What you can do
 
 - **Search:** Find packages across available WinGet sources, inspect publisher, version, description, links, and other details, then install a package or choose a specific version.
-- **Review an install plan:** Select search results and preview a source-aware plan before installing. Scout checks the installed inventory and marks entries it cannot resolve or install.
+- **Review an install plan:** Mark search results with `Space`, then press `i` or `B` to preview the whole selection, including hidden packages. Scout checks the installed inventory and marks entries it cannot resolve or install.
 - **Manage installed packages:** Browse and filter your installed software, upgrade or uninstall it, and manage pins. With the COM backend, you can also verify or repair supported installs.
-- **Handle upgrades together:** Select several upgrades, review the plan, and run the ready items as a batch.
-- **Keep useful context:** Save package sets for later, export visible lists to CSV, and inspect recent runs with success, skip, and failure results.
+- **Handle upgrades together:** Mark upgrades with `Space`, press `u` or `U`, then approve **Upgrade (N)** in the review. A dedicated status row shows package position and backend progress. The list refreshes when the batch finishes; successful packages are deselected and unfinished ones stay marked.
+- **Understand each run:** Open `L` for package timing, source, versions, options, exit codes, and diagnostic output. **Retry package** or **Retry unfinished (N)** rechecks the original requests and opens a fresh review before doing anything.
+- **Find the right action:** Press `m` or `Shift+F10`, or right-click a row, for actions that match the tab, backend, and selection. Counts distinguish visible results, selected packages, and hidden selections.
+- **Diagnose problems:** Press `D` for backend/version, COM fallback, and read-only source checks. Copy or save backend and per-package reports as text or JSON.
+- **Keep useful context:** Save package sets for later and export visible lists to CSV.
 - **Check for updates on a schedule:** Set a daily check and optionally receive a Windows notification when an unpinned upgrade changes or a check fails. Checks never install updates automatically.
 
 The **Search**, **Installed**, and **Upgrades** tabs share a package list and detail panel. Use the arrow keys or `j`/`k` to move, `←`/`→` to switch tabs, and `?` for the complete in-app help.
@@ -59,8 +64,8 @@ The **Search**, **Installed**, and **Upgrades** tabs share a package list and de
 | Key | Action |
 | --- | --- |
 | `/` | Search or filter the current list |
-| `i` / `I` | Install the highlighted package / choose a version |
-| `u` / `x` | Upgrade / uninstall the highlighted package |
+| `i` / `I` | Install highlighted or review marked packages in Search / choose a version |
+| `u` / `x` | Upgrade highlighted or review marked packages in Upgrades / uninstall highlighted |
 | `Space` / `a` | Select one / all visible packages |
 | `B` | Review selected search results before installing |
 | `U` | Review and upgrade selected packages |
@@ -69,10 +74,15 @@ The **Search**, **Installed**, and **Upgrades** tabs share a package list and de
 | `L` | View recent runs, package diagnostics, and retry options |
 | `D` | Inspect backend/version, COM fallback, and read-only source checks |
 | `m` / `Shift+F10` | Open actions for the highlighted package and current selection |
+| `A` / `d` | Review advanced install options / download an installer only |
+| `S` / `f` / `r` | Cycle sort order / cycle source / refresh |
+| `e` | Export the visible list to CSV |
 | `p` / `P` | Pin or unpin a package / cycle the pin filter |
+| `Esc` | Cancel input or pending work; otherwise clear all marks, including hidden ones |
 | `t` / `?` / `q` | Choose a theme / open help / quit |
+| `Ctrl+Q` | Quit from any field or dialog, including nested reviews |
 
-The status bar shows the shortcuts relevant to the current tab. Right-click a package row for its action menu. List headings show visible and total results in the current source/search, plus selections hidden by filtering or earlier searches. Selected plans include those hidden selections and always open for review before execution. Scout also supports sorting, source filters, download-only and advanced installs, and direct homepage or changelog links.
+The footer keeps status/progress on its own row above shortcuts. List headings show visible and total results in the current source/search, plus selections hidden by filtering or earlier searches. In compact windows, secondary columns give way to names and versions; the title keeps the active sort field and arrow visible. Selected plans include hidden selections and always open for review before execution. Enter or double-click on a plan row opens Details; use the explicit **Install (N)** or **Upgrade (N)** button to approve it. The action menu also offers a highlighted-package action when you want to act on just one row.
 
 See the [usage guide](https://github.com/harder/wingetscout/blob/main/docs/usage.md) for the full workflow and shortcut reference.
 
@@ -92,7 +102,7 @@ The portable ZIP uses the structured **WinGet COM API** by default. If COM canno
 
 COM enables richer package details, installer previews and version lists, live progress, and supported verify or repair operations. Search, install, upgrade, uninstall, pinning, saved sets, run history, and scheduled checks remain available through the CLI backend; some detail fields and actions depend on what that backend exposes.
 
-Native ARM64 COM installs and requested x64 architecture selection on ARM64 have unresolved limitations; see [known COM limitations](https://github.com/harder/wingetscout/blob/main/docs/architecture.md#known-com-limitations) before relying on those paths.
+Native ARM64 COM installs have an unresolved limitation. Explicit architecture overrides are checked against read-only installer previews, but a preview does not validate an actual install. See [known COM limitations](https://github.com/harder/wingetscout/blob/main/docs/architecture.md#known-com-limitations) before relying on those paths.
 
 The portable Native AOT build activates WinGet COM through a registration-free manifest and the in-process engine DLLs shipped in the ZIP. An unpackaged AOT executable cannot activate the in-box out-of-process server on its own. The optional `WingetComMode=Identity` build instead uses MSIX package identity and ships `Microsoft.Management.Deployment.winmd` to reach that server. The standalone EXE has neither set of COM prerequisites and uses the CLI backend.
 
