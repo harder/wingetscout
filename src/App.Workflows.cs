@@ -267,7 +267,7 @@ public sealed partial class App
     private void ShowRunRecord (RunRecord record)
     {
         if (App is null) return;
-        using RunRecordDialog detail = new (record);
+        using RunRecordDialog detail = new (record, ShowRunDiagnostics);
         App.Run (detail);
         if (detail.Result is { Count: > 0 } retries) AskRetry (retries);
     }
@@ -360,6 +360,7 @@ public sealed partial class App
             case "homepage": OpenUrl (homepage); break;
             case "changelog": OpenUrl (releaseNotes); break;
             case "history": ShowRunHistory (); break;
+            case "diagnostics": ShowBackendDiagnostics (); break;
         }
     }
 

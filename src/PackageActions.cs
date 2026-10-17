@@ -58,6 +58,7 @@ public static class PackageActions
             actions.Add (new ("batch", $"Review {action} plan ({selectedCount} selected)…"));
         }
         actions.Add (new ("history", "Recent runs…"));
+        actions.Add (new ("diagnostics", "Backend and source diagnostics…"));
         return actions;
     }
 }

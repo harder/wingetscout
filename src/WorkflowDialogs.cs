@@ -48,7 +48,7 @@ public sealed class BatchPlanDialog : Runnable<bool>
 
 public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
 {
-    public RunRecordDialog (RunRecord record)
+    public RunRecordDialog (RunRecord record, Action<RunItem>? showDiagnostics = null)
     {
         Title = $" {StatusOwnership.TruncateScalarSafe (record.Action, 24)} results ";
         BorderStyle = LineStyle.Rounded;
@@ -78,6 +78,7 @@ public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
         void Details ()
         {
             if (Selected () is not { } item || App is null) return;
+            if (showDiagnostics is not null) { showDiagnostics (item); return; }
             using RunDiagnosticsDialog detail = new (item);
             App.Run (detail);
         }
@@ -101,10 +102,20 @@ public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
 
 public sealed class RunDiagnosticsDialog : Runnable
 {
+    private readonly Code _text;
+    private readonly Label _feedback;
+    private readonly Button _copy, _saveText, _saveJson, _refresh;
+    private bool _configured;
+    public DiagnosticDocument Document { get; private set; }
+    public string StatusText => _feedback.Text;
+
     public RunDiagnosticsDialog (RunItem item) : this ("Run diagnostics", item.DetailText ()) { }
+
+    public RunDiagnosticsDialog (DiagnosticDocument document) : this (document.Title, document.Text) => Document = document;
 
     public RunDiagnosticsDialog (string title, string content)
     {
+        Document = new (title, content, string.Empty);
         Title = $" {title} ";
         BorderStyle = LineStyle.Rounded;
         Width = Dim.Percent (85); Height = Dim.Percent (80);
@@ -114,7 +125,8 @@ public sealed class RunDiagnosticsDialog : Runnable
             if (key.KeyCode != KeyCode.Esc) return;
             RequestStop (); key.Handled = true;
         };
-        Code text = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = Dim.Fill (2), Text = content };
+        Code text = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = Dim.Fill (5), Text = content };
+        _text = text;
         text.KeyDown += (_, key) =>
         {
             int page = Math.Max (1, text.Viewport.Height - 1);
@@ -132,9 +144,39 @@ public sealed class RunDiagnosticsDialog : Runnable
             }
             key.Handled = true;
         };
-        Button close = new () { X = Pos.Center (), Y = Pos.AnchorEnd (1), Text = "_Close", IsDefault = true };
+        _copy = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Copy", Enabled = false };
+        _saveText = new () { X = Pos.Right (_copy) + 1, Y = Pos.AnchorEnd (1), Text = "Save _text…", Enabled = false };
+        _saveJson = new () { X = Pos.Right (_saveText) + 1, Y = Pos.AnchorEnd (1), Text = "Save _JSON…", Enabled = false };
+        _refresh = new () { X = 1, Y = Pos.AnchorEnd (3), Text = "_Refresh", Visible = false };
+        _feedback = new () { X = 14, Y = Pos.AnchorEnd (3), Width = Dim.Fill (12), Height = 1 };
+        _feedback.TextFormatter.WordWrap = false;
+        Button close = new () { X = Pos.AnchorEnd (10), Y = Pos.AnchorEnd (3), Text = "C_lose", IsDefault = true };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
-        Add (text, close); text.SetFocus ();
+        Add (text, _copy, _saveText, _saveJson, _refresh, _feedback, close); text.SetFocus ();
+    }
+
+    public void ConfigureActions (Action copy, Action<bool> save, Action? refresh)
+    {
+        _configured = true;
+        _copy.Accepting += (_, e) => { copy (); e.Handled = true; };
+        _saveText.Accepting += (_, e) => { save (false); e.Handled = true; };
+        _saveJson.Accepting += (_, e) => { save (true); e.Handled = true; };
+        _refresh.Visible = refresh is not null;
+        _refresh.Accepting += (_, e) => { refresh?.Invoke (); e.Handled = true; };
+        SetBusy (false);
+    }
+
+    public void SetBusy (bool busy)
+    {
+        _copy.Enabled = _saveText.Enabled = _saveJson.Enabled = _refresh.Enabled = _configured && !busy;
+    }
+
+    public void SetFeedback (string message) => _feedback.Text = message;
+
+    public void SetDocument (DiagnosticDocument document)
+    {
+        Document = document;
+        _text.Text = document.Text;
     }
 }
 

@@ -344,7 +344,9 @@ public sealed class ListNavigationTests
         using UiSession ui = new (AppMode.Installed, 1, backend);
         ui.State.CacheDetail ("Latest", new () { Id = "Latest", Name = "Latest" });
         ui.Press (new Key ('r'));
-        ui.PumpUntil (() => backend.Sources.Count == 1);
+        // Inventory records entry before invoking Load. Wait for response assignment so the
+        // newer worker cannot overtake the first and accidentally receive the delayed result.
+        ui.PumpUntil (() => Volatile.Read (ref loads) == 1);
         ui.Press (new Key ('r'));
         ui.PumpUntil (() => ui.State.Packages.FirstOrDefault ()?.Id == "Latest");
         late.SetResult ([new () { Id = "Old", Name = "Old", Version = "1" }]);
@@ -436,7 +438,8 @@ public sealed class ListNavigationTests
         private readonly SessionToken _session;
 
         public UiSession (AppMode mode, int count, IBackend? backend = null, WorkflowStore? workflowStore = null,
-            Func<System.Diagnostics.ProcessStartInfo, IDisposable?>? urlLauncher = null)
+            Func<System.Diagnostics.ProcessStartInfo, IDisposable?>? urlLauncher = null,
+            Func<string, bool>? copyDiagnosticText = null, Func<bool, string?>? diagnosticSavePath = null)
         {
             Theme.Register ();
             // Begin and Keyboard use the same event/command pipeline as a running app.
@@ -444,7 +447,8 @@ public sealed class ListNavigationTests
             Application = Terminal.Gui.App.Application.Create ();
             Application.GetType ().GetProperty ("Coordinator", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue (Application, new DriverlessLoop (this));
-            Window = new (backend ?? new MockBackend (), workflowStore: workflowStore, urlLauncher: urlLauncher) { Width = 140, Height = 32 };
+            Window = new (backend ?? new MockBackend (), workflowStore: workflowStore, urlLauncher: urlLauncher,
+                copyDiagnosticText: copyDiagnosticText, diagnosticSavePath: diagnosticSavePath) { Width = 140, Height = 32 };
             Field ("_initialLoadDone").SetValue (Window, true);
             State = Get<AppState> ("_state");
             Table = Get<TableView> ("_packageTable");

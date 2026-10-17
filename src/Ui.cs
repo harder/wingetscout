@@ -578,45 +578,69 @@ public sealed class ThemePickerDialog : Runnable<string?>
 /// </summary>
 public sealed class AdvancedInstallDialog : Runnable<InstallSettings?>
 {
-    public AdvancedInstallDialog (string packageName)
+    public AdvancedInstallDialog (string packageName, InstallModePref defaultMode = InstallModePref.Default)
     {
         Title = $" Advanced install: {packageName} ";
         BorderStyle = LineStyle.Rounded;
-        Width = 66;
-        Height = 15;
+        Width = 74;
+        Height = 20;
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
         Arrangement = ViewArrangement.Movable;
 
-        Label scopeLabel = new () { X = 1, Y = 1, Text = "Scope: " };
+        Label explanation = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = "Choose overrides or keep the defaults explained below." };
+        Label scopeLabel = new () { X = 1, Y = 2, Text = "Scope: " };
         OptionSelector scope = new ()
         {
-            X = Pos.Right (scopeLabel), Y = 1, Width = Dim.Fill (1),
+            X = Pos.Right (scopeLabel), Y = 2, Width = Dim.Fill (1),
+            Orientation = Orientation.Horizontal,
             Labels = ["Default", "User", "Machine"]
         };
         scope.Value = 0;
 
-        Label modeLabel = new () { X = 1, Y = 3, Text = "Mode:  " };
+        Label scopeHint = new () { X = 1, Y = 3, Width = Dim.Fill (1) };
+        Label modeLabel = new () { X = 1, Y = 5, Text = "Mode:  " };
         OptionSelector mode = new ()
         {
-            X = Pos.Right (modeLabel), Y = 3, Width = Dim.Fill (1),
+            X = Pos.Right (modeLabel), Y = 5, Width = Dim.Fill (1),
+            Orientation = Orientation.Horizontal,
             Labels = ["Default", "Silent", "Interactive"]
         };
         mode.Value = 0;
 
-        Label archLabel = new () { X = 1, Y = 5, Text = "Arch:  " };
+        Label modeHint = new () { X = 1, Y = 6, Width = Dim.Fill (1) };
+        Label archLabel = new () { X = 1, Y = 8, Text = "Arch:  " };
         OptionSelector arch = new ()
         {
-            X = Pos.Right (archLabel), Y = 5, Width = Dim.Fill (1),
+            X = Pos.Right (archLabel), Y = 8, Width = Dim.Fill (1),
+            Orientation = Orientation.Horizontal,
             Labels = ["Default", "x64", "x86", "arm64"]
         };
         arch.Value = 0;
 
-        Label argsLabel = new () { X = 1, Y = 7, Text = "Custom installer args (optional):" };
-        TextField argsField = new () { X = 1, Y = 8, Width = Dim.Fill (1) };
+        Label archHint = new () { X = 1, Y = 9, Width = Dim.Fill (1) };
+        Label argsLabel = new () { X = 1, Y = 11, Text = "Custom installer args (optional override):" };
+        TextField argsField = new () { X = 1, Y = 12, Width = Dim.Fill (1) };
+        Label reviewHint = new () { X = 1, Y = 14, Width = Dim.Fill (1), Text = "Next: review requested options and the installer, then confirm." };
 
-        Button install = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Install", IsDefault = true };
+        void UpdateHints ()
+        {
+            InstallSettings selected = new ()
+            {
+                Scope = (InstallScopePref)(scope.Value ?? 0), Mode = (InstallModePref)(mode.Value ?? 0),
+                Architecture = (InstallArchPref)(arch.Value ?? 0)
+            };
+            scopeHint.Text = InstallOptionPresentation.Scope (selected);
+            modeHint.Text = InstallOptionPresentation.Mode (selected, defaultMode);
+            archHint.Text = InstallOptionPresentation.Architecture (selected);
+        }
+        scope.ValueChanged += (_, _) => UpdateHints ();
+        mode.ValueChanged += (_, _) => UpdateHints ();
+        arch.ValueChanged += (_, _) => UpdateHints ();
+        UpdateHints ();
+
+        Button install = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Review…", IsDefault = true };
         Button cancel = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
 
         install.Accepting += (_, e) =>
@@ -639,7 +663,8 @@ public sealed class AdvancedInstallDialog : Runnable<InstallSettings?>
                                 e.Handled = true;
                             };
 
-        Add (scopeLabel, scope, modeLabel, mode, archLabel, arch, argsLabel, argsField, install, cancel);
+        Add (explanation, scopeLabel, scope, scopeHint, modeLabel, mode, modeHint, archLabel, arch, archHint,
+            argsLabel, argsField, reviewHint, install, cancel);
         scope.SetFocus ();
     }
 }
@@ -724,6 +749,7 @@ public sealed class HelpDialog : Runnable
           r             Refresh
 
         Actions
+          D             Backend and source diagnostics
           m / Shift+F10 Contextual action menu
           i             Install
           I             Install specific version (COM list, CLI version entry)

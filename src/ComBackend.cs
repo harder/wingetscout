@@ -1239,6 +1239,8 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         return options;
     }
 
+    public InstallModePref DefaultInstallMode => InstallModePref.Silent;
+
     /// <summary>Map the user's advanced-install choices onto the WinGet InstallOptions.</summary>
     private static void ApplyInstallSettings (InstallOptions options, InstallSettings? settings)
     {
@@ -1271,7 +1273,9 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
 
         if (arch is { } a)
         {
-            // .Add on the projected IVector is a method call (not enumeration) — AOT-safe.
+            // An explicit override replaces the engine's prepopulated preference order.
+            // Clear/Add are projected IVector method calls, not enumeration (AOT-safe).
+            options.AllowedArchitectures.Clear ();
             options.AllowedArchitectures.Add (a);
         }
 
@@ -1387,42 +1391,16 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         List<string> names = [];
         CharacterBudget characters = new (BackendLimits.SourceResultCharacters);
 
-        try
+        IReadOnlyList<PackageCatalogReference> catalogs = pm.GetPackageCatalogs ();
+        if (catalogs.Count > BackendLimits.Catalogs)
+            throw new InvalidDataException ("Configured sources exceed the supported limit.");
+        foreach (PackageCatalogReference reference in Materialize (catalogs, BackendLimits.Catalogs, ct))
         {
-            foreach (PackageCatalogReference r in Materialize (pm.GetPackageCatalogs (), BackendLimits.Catalogs, ct))
-            {
-                ct.ThrowIfCancellationRequested ();
-                try
-                {
-                    string? name = ExactIdentity (r.Info?.Name);
-
-                    if (name is not null)
-                    {
-                        if (!characters.TryTakeExact (name, out string? accepted))
-                        {
-                            break;
-                        }
-
-                        names.Add (accepted!);
-                    }
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                    // Skip a catalog whose Info/Name read threw rather than dropping the whole list.
-                }
-            }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            // GetPackageCatalogs threw — return empty; the app keeps its seeded defaults.
+            ct.ThrowIfCancellationRequested ();
+            string? name = ExactIdentity (reference.Info?.Name);
+            if (name is null || !characters.TryTakeExact (name, out string? accepted))
+                throw new InvalidDataException ("A configured source name is unavailable or exceeds the supported limit.");
+            names.Add (accepted!);
         }
 
         return Task.FromResult<IReadOnlyList<string>> (names);

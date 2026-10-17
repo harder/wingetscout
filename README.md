@@ -67,6 +67,7 @@ The **Search**, **Installed**, and **Upgrades** tabs share a package list and de
 | `g` | Save, load, or delete package sets in Search |
 | `C` | Open update-check settings in Upgrades |
 | `L` | View recent runs, package diagnostics, and retry options |
+| `D` | Inspect backend/version, COM fallback, and read-only source checks |
 | `m` / `Shift+F10` | Open actions for the highlighted package and current selection |
 | `p` / `P` | Pin or unpin a package / cycle the pin filter |
 | `t` / `?` / `q` | Choose a theme / open help / quit |
@@ -74,6 +75,10 @@ The **Search**, **Installed**, and **Upgrades** tabs share a package list and de
 The status bar shows the shortcuts relevant to the current tab. Right-click a package row for its action menu. List headings show visible and total results in the current source/search, plus selections hidden by filtering or earlier searches. Selected plans include those hidden selections and always open for review before execution. Scout also supports sorting, source filters, download-only and advanced installs, and direct homepage or changelog links.
 
 See the [usage guide](https://github.com/harder/wingetscout/blob/main/docs/usage.md) for the full workflow and shortcut reference.
+
+Diagnostic views can copy their text or save a text/JSON report to a chosen file.
+Advanced install options explain defaults and overrides, then show requested
+settings and the selected installer before the final confirmation.
 
 ## Scheduled update checks and local data
 

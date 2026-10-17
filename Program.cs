@@ -169,6 +169,12 @@ if (args.Length > 0 && args [0] == "--comsmoke")
         InstallerPreview preview = await probe.GetInstallerPreviewAsync (match.Id, null, null, ct, match.Source)
                                    ?? throw new InvalidOperationException ("COM installer preview was unavailable.");
         Console.WriteLine ($"search/details/versions/preview: {detail.Id}, {versions.Count} versions, {preview}");
+        InstallerPreview x64Preview = await probe.GetInstallerPreviewAsync (match.Id, null,
+            new InstallSettings { Architecture = InstallArchPref.X64 }, ct, match.Source)
+            ?? throw new InvalidOperationException ("Explicit x64 installer preview was unavailable.");
+        if (!string.Equals (x64Preview.Architecture, "x64", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException ($"Explicit x64 override selected {x64Preview.Architecture} instead.");
+        Console.WriteLine ($"explicit architecture preview: {x64Preview.Summary}");
         Console.WriteLine ("Read-only COM smoke passed.");
     }
     catch (Exception ex)

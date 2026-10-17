@@ -56,6 +56,14 @@ read-only checks and manages the optional current-user scheduled task.
 `src/CsvExporter.cs` exports the visible list. CLI subprocesses run through
 `src/ProcessRunner.cs`, which bounds output and owns process cleanup.
 
+`src/App.Diagnostics.cs` owns read-only diagnostic sessions and guarded copy/save
+actions. `src/Diagnostics.cs` collects backend/source snapshots and writes bounded,
+atomic text or source-generated JSON exports. Closing a viewer cancels its work;
+late results cannot update a disposed dialog. These sessions do not reserve or
+release foreground workflows, so read-only reports remain accessible during
+operations, preflight, and CSV exports. Package operations retain their existing
+confirmation and plan-review paths.
+
 ## Windows COM activation
 
 The default `WingetComMode=InProc` Windows build uses `app.manifest` for
@@ -84,11 +92,12 @@ install of zoxide 0.10.0 with WinGet COM 1.29.380 repeatedly ended in
 install succeeded through the CLI backend. Read-only COM operations worked,
 but do not treat them as validation of native ARM64 COM mutations.
 
-On ARM64, choosing x64 for Microsoft.PowerToys in advanced install still showed
-an ARM64 installer in the COM preview. `ApplyInstallSettings` appends the
-requested architecture to WinGet's existing `AllowedArchitectures` vector
-(`src/ComBackend.cs`), leaving ARM64 first; the x64 override may therefore be
-ignored. Do not assume the requested architecture is honored.
+Explicit COM architecture overrides replace WinGet's default
+`AllowedArchitectures` order through indexed-vector method calls. The read-only
+`--comsmoke` check verifies an explicit x64 PowerToys preview on both Windows
+architectures. Advanced install confirmation and retry preflight reject a known
+scope/architecture conflict in the selected installer preview. A missing preview
+remains explicit and does not establish which installer execution will choose.
 
 ## Builds and releases
 
