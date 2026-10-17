@@ -396,7 +396,7 @@ public sealed class WorkflowUiTests
         try
         {
             ListView rows = Assert.Single (dialog.SubViews.OfType<ListView> ());
-            Button retry = Assert.Single (dialog.SubViews.OfType<Button> (), b => b.Text.Contains ("selected"));
+            Button retry = Assert.Single (dialog.SubViews.OfType<Button> (), b => b.Text.Contains ("package"));
             rows.SelectedItem = 0; Assert.True (retry.Enabled);
             rows.SelectedItem = 1; Assert.False (retry.Enabled);
             rows.SelectedItem = 2; Assert.False (retry.Enabled);

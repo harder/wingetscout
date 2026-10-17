@@ -548,6 +548,20 @@ public sealed class ListNavigationTests
             Assert.Empty (Window.BackgroundFailures);
         }
 
+        // Keep the session live: shutdown/drain would cancel callbacks and mask late-response bugs.
+        public Task CaptureBackgroundWorkCompletion ()
+        {
+            BackgroundTaskTracker tracker = Get<BackgroundTaskTracker> ("_background");
+            Type type = typeof (BackgroundTaskTracker);
+            object gate = type.GetField ("_gate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue (tracker)!;
+            lock (gate)
+            {
+                Dictionary<long, TaskCompletionSource> reservations = (Dictionary<long, TaskCompletionSource>)type
+                    .GetField ("_reservations", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue (tracker)!;
+                return Task.WhenAll (reservations.Values.Select (reservation => reservation.Task));
+            }
+        }
+
         private void SetUiThread () => Application.GetType ().GetProperty ("MainThreadId")!
             .SetValue (Application, Environment.CurrentManagedThreadId);
 

@@ -18,13 +18,17 @@ public sealed class BatchPlanDialog : Runnable<bool>
             Result = false; RequestStop (); key.Handled = true;
         };
 
-        Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{plan.Ready} ready · {plan.Skipped} skipped  —  review each package before continuing" };
+        Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = 1, Text = $"{plan.Items.Count} packages · {plan.Ready} ready · {plan.Skipped} skipped" };
+        summary.TextFormatter.WordWrap = false;
+        Label hint = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = 1, Text = plan.Ready > 0
+            ? "Enter Details · Tab actions · Esc Cancel"
+            : "Nothing ready · Enter Details · Esc Cancel" };
         ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (plan.Items.Select (x =>
             $"{(x.CanRun ? "READY" : "SKIP ")}  {x.Package.Name} [{x.Package.Id}] ({x.Package.Source})  —  {x.Reason}").ToList ()));
         rows.SelectedItem = plan.Items.Count > 0 ? 0 : null;
         Button details = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Details", Enabled = plan.Items.Count > 0 };
-        details.Accepting += (_, e) =>
+        void Details ()
         {
             if (App is not null && rows.SelectedItem is { } i && i >= 0 && i < plan.Items.Count)
             {
@@ -35,13 +39,14 @@ public sealed class BatchPlanDialog : Runnable<bool>
                     + $"{item.Reason}\n{item.Request?.Description}");
                 App.Run (detail);
             }
-            e.Handled = true;
-        };
-        Button run = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = $"_{plan.Action}", IsDefault = true, Enabled = plan.Ready > 0 };
-        Button cancel = new () { X = Pos.Center () + 3, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        }
+        details.Accepting += (_, e) => { Details (); e.Handled = true; };
+        rows.Accepting += (_, e) => { Details (); e.Handled = true; };
+        Button run = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = $"_{plan.Action} ({plan.Ready})", IsDefault = true, Enabled = plan.Ready > 0 };
+        Button cancel = new () { X = Pos.Right (run) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
         run.Accepting += (_, e) => { Result = true; RequestStop (); e.Handled = true; };
         cancel.Accepting += (_, e) => { Result = false; RequestStop (); e.Handled = true; };
-        Add (summary, rows, details, run, cancel);
+        Add (summary, hint, rows, details, run, cancel);
         rows.SetFocus ();
     }
 }
@@ -62,15 +67,18 @@ public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
             if (key.KeyCode != KeyCode.Esc) return;
             Result = null; RequestStop (); key.Handled = true;
         };
-        Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{record.Summary} · {record.FinishedAtUtc.ToLocalTime ():g}" };
+        Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = 1, Text = $"{record.Summary} · {record.FinishedAtUtc.ToLocalTime ():g}" };
+        summary.TextFormatter.WordWrap = false;
+        Label hint = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = 1, Text = "Enter Details · Retry package = highlighted row" };
         ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (5), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (record.Items.Select (x =>
             $"{x.Status,-9} {x.Name} [{x.Id}] ({x.Source})  —  {x.Reason}").ToList ()));
         rows.SelectedItem = record.Items.Count > 0 ? 0 : null;
         Button diagnostics = new () { X = 1, Y = Pos.AnchorEnd (3), Text = "_Details", Enabled = record.Items.Count > 0 };
-        Button retry = new () { X = 14, Y = Pos.AnchorEnd (3), Text = "_Retry selected…" };
-        Button retryAll = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "Retry _failed…", Enabled = record.Items.Any (x => x.Status == "Failed" && x.CanRetry) };
-        Button close = new () { X = Pos.AnchorEnd (10), Y = Pos.AnchorEnd (1), Text = "_Close", IsDefault = true };
+        RunItem [] unfinished = record.Items.Where (x => x.CanRetry).ToArray ();
+        Button retry = new () { X = 14, Y = Pos.AnchorEnd (3), Text = "_Retry package…" };
+        Button retryAll = new () { X = 1, Y = Pos.AnchorEnd (1), Text = $"Retry _unfinished ({unfinished.Length})…", Enabled = unfinished.Length > 0 };
+        Button close = new () { X = Pos.AnchorEnd (), Y = Pos.AnchorEnd (1), Text = "_Close", IsDefault = true };
         RunItem? Selected () => rows.SelectedItem is { } i && i >= 0 && i < record.Items.Count ? record.Items [i] : null;
         void UpdateRetry () => retry.Enabled = Selected ()?.CanRetry == true;
         UpdateRetry ();
@@ -91,11 +99,11 @@ public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
         };
         retryAll.Accepting += (_, e) =>
         {
-            Result = record.Items.Where (x => x.Status == "Failed" && x.CanRetry).ToArray ();
+            Result = unfinished;
             RequestStop (); e.Handled = true;
         };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
-        Add (summary, rows, diagnostics, retry, retryAll, close);
+        Add (summary, hint, rows, diagnostics, retry, retryAll, close);
         rows.SetFocus ();
     }
 }
@@ -127,30 +135,14 @@ public sealed class RunDiagnosticsDialog : Runnable
         };
         Code text = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = Dim.Fill (5), Text = content };
         _text = text;
-        text.KeyDown += (_, key) =>
-        {
-            int page = Math.Max (1, text.Viewport.Height - 1);
-            switch (key.KeyCode)
-            {
-                case KeyCode.CursorDown: text.ScrollVertical (1); break;
-                case KeyCode.CursorUp: text.ScrollVertical (-1); break;
-                case KeyCode.PageDown: text.ScrollVertical (page); break;
-                case KeyCode.PageUp: text.ScrollVertical (-page); break;
-                case KeyCode.Home: text.ScrollVertical (-text.Viewport.Y); break;
-                case KeyCode.End: text.ScrollVertical (text.GetContentSize ().Height); break;
-                case KeyCode.CursorLeft: text.ScrollHorizontal (-1); break;
-                case KeyCode.CursorRight: text.ScrollHorizontal (1); break;
-                default: return;
-            }
-            key.Handled = true;
-        };
-        _copy = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Copy", Enabled = false };
-        _saveText = new () { X = Pos.Right (_copy) + 1, Y = Pos.AnchorEnd (1), Text = "Save _text…", Enabled = false };
-        _saveJson = new () { X = Pos.Right (_saveText) + 1, Y = Pos.AnchorEnd (1), Text = "Save _JSON…", Enabled = false };
+        ReadOnlyTextNavigation.Configure (text);
+        _copy = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Copy", Enabled = false, Visible = false };
+        _saveText = new () { X = Pos.Right (_copy) + 1, Y = Pos.AnchorEnd (1), Text = "Save _text…", Enabled = false, Visible = false };
+        _saveJson = new () { X = Pos.Right (_saveText) + 1, Y = Pos.AnchorEnd (1), Text = "Save _JSON…", Enabled = false, Visible = false };
         _refresh = new () { X = 1, Y = Pos.AnchorEnd (3), Text = "_Refresh", Visible = false };
         _feedback = new () { X = 14, Y = Pos.AnchorEnd (3), Width = Dim.Fill (12), Height = 1 };
         _feedback.TextFormatter.WordWrap = false;
-        Button close = new () { X = Pos.AnchorEnd (10), Y = Pos.AnchorEnd (3), Text = "C_lose", IsDefault = true };
+        Button close = new () { X = Pos.AnchorEnd (), Y = Pos.AnchorEnd (3), Text = "C_lose", IsDefault = true };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
         Add (text, _copy, _saveText, _saveJson, _refresh, _feedback, close); text.SetFocus ();
     }
@@ -158,6 +150,7 @@ public sealed class RunDiagnosticsDialog : Runnable
     public void ConfigureActions (Action copy, Action<bool> save, Action? refresh)
     {
         _configured = true;
+        _copy.Visible = _saveText.Visible = _saveJson.Visible = true;
         _copy.Accepting += (_, e) => { copy (); e.Handled = true; };
         _saveText.Accepting += (_, e) => { save (false); e.Handled = true; };
         _saveJson.Accepting += (_, e) => { save (true); e.Handled = true; };
@@ -192,7 +185,13 @@ public sealed class PackageActionDialog : Runnable<string?>
             if (key.KeyCode != KeyCode.Esc) return;
             Result = null; RequestStop (); key.Handled = true;
         };
-        Label label = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = context };
+        int separator = context.LastIndexOf ('\n');
+        Label label = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = 1,
+            Text = separator < 0 ? context : context [..separator].ReplaceLineEndings (" ") };
+        label.TextFormatter.WordWrap = false;
+        Label counts = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = 1,
+            Text = separator < 0 ? string.Empty : context [(separator + 1)..] };
+        counts.TextFormatter.WordWrap = false;
         ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (actions.Select (x => x.Label).ToList ()));
         rows.SelectedItem = actions.Count > 0 ? 0 : null;
@@ -203,10 +202,10 @@ public sealed class PackageActionDialog : Runnable<string?>
         }
         rows.Accepting += (_, e) => { Choose (); e.Handled = true; };
         Button choose = new () { X = Pos.Center () - 10, Y = Pos.AnchorEnd (1), Text = "_Choose", IsDefault = true };
-        Button cancel = new () { X = Pos.Center () + 3, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        Button cancel = new () { X = Pos.Right (choose) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
         choose.Accepting += (_, e) => { Choose (); e.Handled = true; };
         cancel.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
-        Add (label, rows, choose, cancel); rows.SetFocus ();
+        Add (label, counts, rows, choose, cancel); rows.SetFocus ();
     }
 }
 
@@ -224,7 +223,7 @@ public sealed class TextPromptDialog : Runnable<string?>
         Label label = new () { X = 1, Y = 0, Text = prompt };
         TextField input = new () { X = 1, Y = 2, Width = Dim.Fill (1) };
         Button save = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = "_Save", IsDefault = true };
-        Button cancel = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        Button cancel = new () { X = Pos.Right (save) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
         save.Accepting += (_, e) => { Result = input.Text?.Trim (); RequestStop (); e.Handled = true; };
         cancel.Accepting += (_, e) => { Result = null; RequestStop (); e.Handled = true; };
         Add (label, input, save, cancel);
@@ -240,7 +239,7 @@ public sealed class SetManagerDialog : Runnable<SetManagerChoice?>
     {
         Title = " Saved package sets ";
         BorderStyle = LineStyle.Rounded;
-        Width = Dim.Percent (65);
+        Width = Dim.Percent (78);
         Height = Math.Clamp (sets.Count + 8, 11, 21);
         X = Pos.Center ();
         Y = Pos.Center ();
@@ -248,6 +247,7 @@ public sealed class SetManagerDialog : Runnable<SetManagerChoice?>
         Label hint = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{selectedCount} currently selected · choose a set or save this selection" };
         ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (sets.Select (x => $"{x.Name} ({x.Packages.Count})").ToList ()));
+        rows.SelectedItem = sets.Count > 0 ? 0 : null;
         Button save = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Save current", Enabled = selectedCount > 0 };
         Button load = new () { X = 19, Y = Pos.AnchorEnd (1), Text = "_Load", Enabled = sets.Count > 0 };
         Button delete = new () { X = 30, Y = Pos.AnchorEnd (1), Text = "_Delete", Enabled = sets.Count > 0 };
@@ -263,7 +263,7 @@ public sealed class SetManagerDialog : Runnable<SetManagerChoice?>
         delete.Accepting += (_, e) => { Select ("Delete"); e.Handled = true; };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
         Add (hint, rows, save, load, delete, close);
-        (sets.Count > 0 ? (View)rows : save).SetFocus ();
+        (sets.Count > 0 ? (View)rows : selectedCount > 0 ? save : close).SetFocus ();
     }
 }
 
@@ -288,7 +288,7 @@ public sealed class RunHistoryDialog : Runnable<int?>
             $"{x.FinishedAtUtc.ToLocalTime ():g}  {StatusOwnership.TruncateScalarSafe (x.Action, 10),-10} {x.Summary}").ToList ()));
         rows.SelectedItem = runs.Count > 0 ? 0 : null;
         Button open = new () { X = Pos.Center () - 7, Y = Pos.AnchorEnd (1), Text = "_Open", IsDefault = true };
-        Button close = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Close" };
+        Button close = new () { X = Pos.Right (open) + 2, Y = Pos.AnchorEnd (1), Text = "Close" };
         open.Accepting += (_, e) => { Result = rows.SelectedItem; RequestStop (); e.Handled = true; };
         close.Accepting += (_, e) => { Result = null; RequestStop (); e.Handled = true; };
         Add (rows, open, close);

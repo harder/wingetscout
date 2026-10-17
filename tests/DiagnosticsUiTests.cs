@@ -217,8 +217,11 @@ public sealed class DiagnosticsUiTests
         ui.Press (new Key ('D'));
         Assert.True (closed);
         Assert.True (probeToken.IsCancellationRequested);
+        Task completion = ui.CaptureBackgroundWorkCompletion ();
+        Assert.False (completion.IsCompleted);
         query.SetResult ([Tool ()]);
-        ui.Pump ();
+        ui.PumpUntil (() => completion.IsCompleted);
+        Assert.True (completion.IsCompletedSuccessfully);
         Assert.Same (ui.Window, ui.Application.TopRunnable);
         Assert.True (await ui.Window.ShutdownAsync (TimeSpan.FromSeconds (2)));
         Assert.Empty (ui.Window.BackgroundFailures);

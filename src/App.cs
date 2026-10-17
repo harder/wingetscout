@@ -50,6 +50,7 @@ public sealed partial class App : Window
     // cover list/detail refreshes that already cancel implicitly on navigation.
     private CancellationTokenSource? _opCts;
     private CancellationTokenSource? _preflightCts;
+    private Action? _cancelPreflight;
 
     private object? _spinnerTimer;
     private object? _smokeTimer;
@@ -58,6 +59,7 @@ public sealed partial class App : Window
     private int _uiAccepting = 1;
     private PendingProgress? _pendingProgress;
     private bool _progressDispatcherRunning;
+    private long _progressGeneration;
     private bool _globalKeysAttached;
     private AppMode? _mainLoadingMode;
     private readonly HashSet<AppMode> _loadedModes = [];
@@ -128,7 +130,7 @@ public sealed partial class App : Window
             X = 0,
             Y = HeaderHeight,
             Width = Dim.Percent (60),
-            Height = Dim.Fill (1),
+            Height = Dim.Fill (2),
             Title = " Installed ",
             BorderStyle = LineStyle.Rounded,
             SchemeName = Theme.FrameFocusedSchemeName
@@ -185,7 +187,7 @@ public sealed partial class App : Window
             X = Pos.Right (_listFrame),
             Y = HeaderHeight,
             Width = Dim.Fill (),
-            Height = Dim.Fill (1)
+            Height = Dim.Fill (2)
         };
         _detailPanel.CanVerify = backend.CanVerify;
         _detailPanel.CanRepair = backend.CanRepair;
@@ -193,7 +195,7 @@ public sealed partial class App : Window
         _statusBar = new ()
         {
             X = 0,
-            Y = Pos.AnchorEnd (1),
+            Y = Pos.AnchorEnd (2),
             Width = Dim.Fill ()
         };
 
@@ -321,11 +323,6 @@ public sealed partial class App : Window
     {
         if (key.KeyCode == (KeyCode.Q | KeyCode.CtrlMask))
         {
-            if (App is { } app && app.TopRunnable is { } top && !ReferenceEquals (top, this))
-            {
-                app.RequestStop (top);
-            }
-
             RequestGracefulStop ();
             key.Handled = true;
             return;
@@ -410,6 +407,13 @@ public sealed partial class App : Window
     private void RequestGracefulStop ()
     {
         BeginShutdown ();
+        if (App is { SessionStack: { } sessions } app)
+        {
+            foreach (SessionToken session in sessions.ToArray ())
+            {
+                if (session.Runnable is { } runnable) app.RequestStop (runnable);
+            }
+        }
         RequestStop ();
     }
 
@@ -690,6 +694,7 @@ public sealed partial class App : Window
     // otherwise mask the brief result). Null on a normal refresh, which shows the usual messages.
     private void TriggerRefresh (string? keepMessage = null, bool prominent = false)
     {
+        CancelPendingPreflight ();
         _state.ViewError = null;
         CancellationTokenSource request = ReplaceLifetimeLinkedSource (ref _viewCts);
         CancellationToken ct = request.Token;
@@ -710,7 +715,8 @@ public sealed partial class App : Window
             HideMainLoading ();
             _state.Packages = [];
             _state.ApplyFilter ();
-            SetStatus ("Type a package name and press Enter to search");
+            SetStatus (keepMessage ?? "Type a package name and press Enter to search",
+                keepMessage is not null && _state.StatusIsError);
             RefreshTable ();
             RefreshStatusBar ();
             SyncTabBar ();
@@ -994,7 +1000,15 @@ public sealed partial class App : Window
 
     private void UpdateListTitle ()
     {
-        string title = $" {_state.Mode} ({CurrentCounts ().Label}) ";
+        string sortLabel = _state.SortField switch
+        {
+            SortField.None => string.Empty,
+            SortField.AvailableVersion => "Available",
+            _ => _state.SortField.ToString ()
+        };
+        // Put sorting before counts so compact panes and long selection labels cannot hide it.
+        string sort = sortLabel.Length == 0 ? string.Empty : $" · {HeaderWithSort (sortLabel, _state.SortField)}";
+        string title = $" {_state.Mode}{sort} ({CurrentCounts ().Label}) ";
 
         if (_state.Mode != AppMode.Search && _state.PinFilter != PinFilter.All)
         {
@@ -1062,10 +1076,9 @@ public sealed partial class App : Window
     private int _lastColumnLayoutWidth = -1;
 
     /// <summary>
-    /// Sizes the data columns to the table's current width. Name/Id/Version shrink toward minimums
-    /// when the terminal is narrow so the <b>Available</b> column stays visible — it sits just
-    /// before the expanding Source column and is otherwise the first to be pushed off-screen, so a
-    /// user on a small window can't tell it exists. Wired to the list frame's ViewportChanged
+    /// Sizes the data columns to the table's current width. Compact panes omit Id, then Source,
+    /// which remain in Package Details, so installed/available versions stay visible.
+    /// Wired to the list frame's ViewportChanged
     /// so moving the selection cannot trigger a different column layout.
     /// </summary>
     private void ApplyColumnWidths (bool force = false)
@@ -1088,22 +1101,32 @@ public sealed partial class App : Window
 
         string [] names = table.ColumnNames;
 
-        // Preferred widths, and how far each may shrink. Available/Source are not shrunk so they
-        // survive; Source is the ExpandLastColumn target and fills whatever remains.
+        // Keep the full layout when its minimum widths fit. Otherwise remove secondary columns
+        // before shrinking the useful package name or pushing versions outside the viewport.
         int nameW = 24, idW = 28, verW = 14;
-        const int availW = 14, sourceW = 8, tableGutter = 8;
-        const int nameMin = 14, idMin = 16, verMin = 9;
+        const int sourceW = 8, tableGutter = 8;
+        const int idMin = 16;
 
         bool hasAvailable = names.Any (name => name.StartsWith ("Available", StringComparison.Ordinal));
         int dataCols = Math.Max (0, names.Length - 1); // exclude the 1-wide marker column
+        int fullMinimum = 1 + dataCols + 1 + sourceW + tableGutter + 14 + idMin + 9 + (hasAvailable ? 14 : 0);
+        bool hideId = avail < fullMinimum;
+        // Four compact data columns need 52 cells, including marker, separators and gutter.
+        int compactWithSourceMinimum = 1 + 5 + sourceW + tableGutter + 12 + 9 + 9;
+        bool hideSource = hasAvailable && avail < compactWithSourceMinimum;
+        int nameMin = hideId ? 12 : 14;
+        int availW = hideId ? HeaderWithSort ("Available", SortField.AvailableVersion).GetColumns () : 14;
+        int verMin = hideId ? HeaderWithSort ("Version", SortField.Version).GetColumns () : 9;
+        if (hideId) { idW = 0; dataCols--; }
+        if (hideSource) dataCols--;
 
         // Reserve the marker, column separators, the Source column, and TableView's rendering
         // gutter. Otherwise the last column is clipped before the first selection redraw.
         // Shrink Id → Name → Version (in that order) to fit Name+Id+Version+Available.
-        int budget = avail - 1 - (dataCols + 1) - sourceW - tableGutter;
+        int budget = avail - 1 - (dataCols + 1) - (hideSource ? 0 : sourceW) - tableGutter;
         int deficit = nameW + idW + verW + (hasAvailable ? availW : 0) - budget;
 
-        if (deficit > 0) { int c = Math.Min (deficit, idW - idMin); idW -= c; deficit -= c; }
+        if (deficit > 0 && !hideId) { int c = Math.Min (deficit, idW - idMin); idW -= c; deficit -= c; }
         if (deficit > 0) { int c = Math.Min (deficit, nameW - nameMin); nameW -= c; deficit -= c; }
         if (deficit > 0) { int c = Math.Min (deficit, verW - verMin); verW -= c; deficit -= c; }
 
@@ -1124,6 +1147,7 @@ public sealed partial class App : Window
             }
 
             ColumnStyle s = _packageTable.Style.GetOrCreateColumnStyle (i);
+            s.Visible = !(hideId && name.StartsWith ("Id", StringComparison.Ordinal) || hideSource && name == "Source");
             s.MinWidth = w.Value;
             s.MaxWidth = w.Value;
         }
@@ -1218,6 +1242,7 @@ public sealed partial class App : Window
             return;
         }
 
+        Package? previousSelection = CurrentPackage ();
         if (_state.SortField == field)
         {
             _state.SortDir = _state.SortDir == SortDir.Asc ? SortDir.Desc : SortDir.Asc;
@@ -1230,6 +1255,7 @@ public sealed partial class App : Window
 
         _state.ApplyFilter ();
         RefreshTable ();
+        RestoreCursorOrSelectFirst (previousSelection);
     }
 
     private void SyncTabBar ()
@@ -1637,6 +1663,12 @@ public sealed partial class App : Window
                     return;
                 }
 
+                if (CancelPendingPreflight () || ClearSelection ())
+                {
+                    key.Handled = true;
+                    return;
+                }
+
                 SetStatus ("Press q or Ctrl+Q to quit");
                 RefreshStatusBar ();
                 key.Handled = true;
@@ -1752,19 +1784,23 @@ public sealed partial class App : Window
 
                     return;
                 case 'S':
+                    Package? previousSelection = CurrentPackage ();
                     _state.CycleSort ();
                     _state.ApplyFilter ();
                     RefreshTable ();
+                    RestoreCursorOrSelectFirst (previousSelection);
                     key.Handled = true;
 
                     return;
                 case 'P':
                     if (_state.Mode != AppMode.Search)
                     {
+                        Package? previousPinSelection = CurrentPackage ();
                         if (_state.CyclePinFilter ())
                         {
                             _state.ApplyFilter ();
                             RefreshTable ();
+                            RestoreCursorOrSelectFirst (previousPinSelection);
                             RefreshStatusBar ();
                         }
                         else
@@ -1809,7 +1845,8 @@ public sealed partial class App : Window
 
                     return;
                 case 'i':
-                    AskInstall (CurrentPackage (), specificVersion: false);
+                    if (_state.Mode == AppMode.Search && _searchSelected.Count > 0) AskBatchInstall ();
+                    else AskInstall (CurrentPackage (), specificVersion: false);
                     key.Handled = true;
 
                     return;
@@ -1842,7 +1879,8 @@ public sealed partial class App : Window
 
                     return;
                 case 'u':
-                    AskUpgrade (CurrentPackage ());
+                    if (_state.Mode == AppMode.Upgrades && _state.BatchSelected.Count > 0) AskBatchUpgrade ();
+                    else AskUpgrade (CurrentPackage ());
                     key.Handled = true;
 
                     return;
@@ -2357,9 +2395,18 @@ public sealed partial class App : Window
 
             if (ReferenceEquals (Interlocked.CompareExchange (ref _preflightCts, null, request), request))
             {
+                Interlocked.Exchange (ref _cancelPreflight, null);
                 _foreground.Release (admission);
             }
         }
+
+        _cancelPreflight = () =>
+        {
+            CancelSource (request);
+            ReleasePreflight ();
+            SetStatus ("Package check cancelled.");
+            RefreshStatusBar ();
+        };
 
         bool admitted = _background.TryRun (async lifetimeToken =>
                                              {
@@ -2525,6 +2572,15 @@ public sealed partial class App : Window
             return;
         }
 
+        if (!_state.PinDataFresh || p.PinState.IsPinned)
+        {
+            SetStatus (!_state.PinDataFresh
+                ? "Pin status is unavailable; refresh successfully before upgrading"
+                : $"{p.Name} is pinned. Unpin it before upgrading.", isError: true);
+            RefreshStatusBar ();
+            return;
+        }
+
         // Unlike install/uninstall/pin, a truncated id doesn't block an upgrade: the CLI backend's
         // UpgradeAsync tries `--id` then falls back to `--name --exact`, so handing it the name
         // resolves the row winget truncated.
@@ -2634,6 +2690,7 @@ public sealed partial class App : Window
     {
         if (p is null)
         {
+            if (CurrentCounts ().Selected > 0) RefreshSelection ();
             return;
         }
 
@@ -2643,9 +2700,7 @@ public sealed partial class App : Window
             _state.BatchSelected.Remove (key);
         }
 
-        UpdateListTitle ();
-        _packageTable.SetNeedsDraw ();
-        RefreshStatusBar ();
+        RefreshSelection ();
     }
 
     private void ToggleSelectAll ()
@@ -2662,9 +2717,7 @@ public sealed partial class App : Window
             }
         }
 
-        UpdateListTitle ();
-        _packageTable.SetNeedsDraw ();
-        RefreshStatusBar ();
+        RefreshSelection ();
     }
 
     private void AskBatchUpgrade ()
@@ -2674,7 +2727,9 @@ public sealed partial class App : Window
             return;
         }
 
-        HashSet<string> selected = new (_state.BatchSelected, StringComparer.OrdinalIgnoreCase);
+        List<string> selected = _state.Filtered.Select (BatchPlanning.Key).Where (_state.BatchSelected.Contains)
+            .Concat (_state.BatchSelected.Order (StringComparer.OrdinalIgnoreCase))
+            .Distinct (StringComparer.OrdinalIgnoreCase).ToList ();
         ReviewOperationPlan ($"Checking {selected.Count} selected upgrades…", "Upgrade",
             ct => BatchPlanning.ReviewUpgradesAsync (_state.Backend, selected, ct));
     }
@@ -2715,6 +2770,7 @@ public sealed partial class App : Window
 
         SetStatus ($"{activity} · Esc to cancel", owner: StatusOwner.Operation);
         IDisposable loading = _state.AcquireLoading ();
+        Interlocked.Increment (ref _progressGeneration);
         _state.OpProgress = null;
         RefreshStatusBar ();
 
@@ -2760,8 +2816,11 @@ public sealed partial class App : Window
                                                                           }
                                                                           else
                                                                           {
-                                                                              outcome = result!.Success ? "Done" : result.Message;
+                                                                              outcome = RunRecord.CompactReason (result!.Message);
                                                                               outcomeIsError = !result.Success;
+
+                                                                              if (result.Success && kind == OperationKind.Upgrade)
+                                                                                  _state.BatchSelected.Remove (BatchPlanning.Key (package));
 
                                                                               if (MarkPinsStaleAfterSuccessfulMutation (_state, result))
                                                                               {
@@ -2852,16 +2911,18 @@ public sealed partial class App : Window
         RefreshStatusBar ();
     }
 
-    private void ReportProgress (OpProgress value, CancellationTokenSource request, CancellationToken requestToken)
+    private void ReportProgress (OpProgress value, CancellationTokenSource request, CancellationToken requestToken, long generation)
     {
-        if (requestToken.IsCancellationRequested || !OperationRequestIsCurrent (request))
+        if (requestToken.IsCancellationRequested || !OperationRequestIsCurrent (request)
+            || generation != Interlocked.Read (ref _progressGeneration))
         {
             return;
         }
 
         lock (_progressGate)
         {
-            _pendingProgress = new (value, request, requestToken);
+            if (generation != Interlocked.Read (ref _progressGeneration)) return;
+            _pendingProgress = new (value, request, requestToken, generation);
 
             if (_progressDispatcherRunning)
             {
@@ -2901,7 +2962,8 @@ public sealed partial class App : Window
             }
 
             await DispatchAsync (() => OnOpProgress (pending.Value), pending.RequestToken,
-                                 () => OperationRequestIsCurrent (pending.Request));
+                                 () => OperationRequestIsCurrent (pending.Request)
+                                       && pending.Generation == Interlocked.Read (ref _progressGeneration));
         }
 
         lock (_progressGate)
@@ -2918,14 +2980,16 @@ public sealed partial class App : Window
     private sealed class UiProgress (App owner, CancellationTokenSource request) : IProgress<OpProgress>
     {
         private readonly CancellationToken _requestToken = request.Token;
+        private readonly long _generation = Interlocked.Read (ref owner._progressGeneration);
 
-        public void Report (OpProgress value) => owner.ReportProgress (value, request, _requestToken);
+        public void Report (OpProgress value) => owner.ReportProgress (value, request, _requestToken, _generation);
     }
 
     private sealed record PendingProgress (
         OpProgress Value,
         CancellationTokenSource Request,
-        CancellationToken RequestToken);
+        CancellationToken RequestToken,
+        long Generation);
 
     private bool Confirm (string title, string message)
     {
@@ -2986,7 +3050,9 @@ public sealed partial class App : Window
     /// time - this just needs to trigger that redraw.</summary>
     private void RefreshTheme ()
     {
+        Package? previousSelection = CurrentPackage ();
         RefreshTable ();
+        RestoreCursorOrSelectFirst (previousSelection);
         RefreshStatusBar ();
         App?.TopRunnableView?.SetNeedsLayout ();
         App?.TopRunnableView?.SetNeedsDraw ();
