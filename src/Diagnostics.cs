@@ -104,7 +104,7 @@ internal static class DiagnosticExport
         ct.ThrowIfCancellationRequested ();
         if (content.Length > MaxCharacters) throw new InvalidDataException ("Diagnostics exceed the export size limit.");
         string destination = Path.GetFullPath (path);
-        string temporary = Path.Combine (Path.GetDirectoryName (destination)!, $".{Path.GetFileName (destination)}.{Guid.NewGuid ():N}.tmp");
+        string temporary = Path.Combine (Path.GetDirectoryName (destination)!, $".wingetscout-{Guid.NewGuid ():N}.tmp");
         Exception? primaryFailure = null;
         try
         {

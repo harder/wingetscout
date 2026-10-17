@@ -89,6 +89,7 @@ public sealed class DiagnosticsTests
 
     [Theory]
     [InlineData ("arm64", "machine", true)]
+    [InlineData ("arm", "machine", true)]
     [InlineData ("x64", "user", true)]
     [InlineData ("X64", "MACHINE", false)]
     [InlineData ("Neutral", "Unknown", false)]
@@ -117,6 +118,40 @@ public sealed class DiagnosticsTests
         Assert.Contains ("/feature", overrides);
     }
 
+    [Theory]
+    [InlineData (InstallArchPref.X64)]
+    [InlineData (InstallArchPref.X86)]
+    [InlineData (InstallArchPref.Arm64)]
+    public void ArmPreviewConflictsWithEveryExplicitArchitectureButAllowsTheDefault (InstallArchPref architecture)
+    {
+        InstallerPreview preview = new () { Architecture = "ARM" };
+        Assert.NotNull (InstallOptionPresentation.PreviewConflict (new () { Architecture = architecture }, preview));
+        Assert.Null (InstallOptionPresentation.PreviewConflict (new (), preview));
+    }
+
+    [Fact]
+    public async Task FailedExportCommitCleansUpTheTemporaryFileAndAllowsAnotherSave ()
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-diagnostic-failed-" + Guid.NewGuid ().ToString ("N"));
+        Directory.CreateDirectory (root);
+        try
+        {
+            string occupied = Path.Combine (root, "occupied");
+            Directory.CreateDirectory (occupied);
+            string existing = Path.Combine (occupied, "keep.txt");
+            File.WriteAllText (existing, "Keep this file");
+            Exception? failure = await Record.ExceptionAsync (() => DiagnosticExport.WriteAsync (occupied, "Report", true, CancellationToken.None));
+            Assert.True (failure is IOException or UnauthorizedAccessException);
+            Assert.Equal ("Keep this file", File.ReadAllText (existing));
+            Assert.Empty (Directory.GetFiles (root));
+            string path = Path.Combine (root, "report.txt");
+            await DiagnosticExport.WriteAsync (path, "Report", false, CancellationToken.None);
+            Assert.Equal ("Report", File.ReadAllText (path));
+            Assert.Equal (path, Assert.Single (Directory.GetFiles (root)));
+        }
+        finally { Directory.Delete (root, true); }
+    }
+
     [Fact]
     public async Task OversizedExportsFailBeforeTouchingTheDestination ()
     {
@@ -134,10 +169,12 @@ public sealed class DiagnosticsTests
         finally { Directory.Delete (root, true); }
     }
 
-    [Fact]
-    public async Task RetryingAdvancedOptionsChecksTheSelectedInstallerBeforeApproval ()
+    [Theory]
+    [InlineData ("arm64")]
+    [InlineData ("arm")]
+    public async Task RetryingAdvancedOptionsChecksTheSelectedInstallerBeforeApproval (string architecture)
     {
-        RecordingBackend backend = new () { Preview = new () { Architecture = "arm64" } };
+        RecordingBackend backend = new () { Preview = new () { Architecture = architecture } };
         RunItem item = Failed (settings: new () { Architecture = InstallArchPref.X64 });
         BatchPlan plan = await RetryPlanning.ReviewAsync (backend, [item], CancellationToken.None);
         Assert.Equal (0, plan.Ready);
@@ -147,5 +184,25 @@ public sealed class DiagnosticsTests
         backend.Preview = new () { Architecture = "x64" };
         Assert.Equal (1, (await RetryPlanning.ReviewAsync (backend, [item], CancellationToken.None)).Ready);
         Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public async Task LongDestinationNamesSupportCreationAndConfirmedReplacement ()
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-diagnostic-long-" + Guid.NewGuid ().ToString ("N"));
+        Directory.CreateDirectory (root);
+        try
+        {
+            // A valid NTFS component must not become invalid when constructing the temporary file.
+            string path = Path.Combine (root, new string ('r', 251) + ".txt");
+            await DiagnosticExport.WriteAsync (path, "First report", false, CancellationToken.None);
+            Assert.Equal ("First report", File.ReadAllText (path));
+            await Assert.ThrowsAsync<IOException> (() => DiagnosticExport.WriteAsync (path, "Unapproved", false, CancellationToken.None));
+            Assert.Equal ("First report", File.ReadAllText (path));
+            await DiagnosticExport.WriteAsync (path, "Confirmed replacement", true, CancellationToken.None);
+            Assert.Equal ("Confirmed replacement", File.ReadAllText (path));
+            Assert.Equal (path, Assert.Single (Directory.GetFiles (root)));
+        }
+        finally { Directory.Delete (root, true); }
     }
 }

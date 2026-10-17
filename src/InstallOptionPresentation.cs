@@ -18,7 +18,7 @@ public static class InstallOptionPresentation
     {
         if (settings is null || preview is null) return null;
         string? architecture = preview.Architecture?.ToLowerInvariant ();
-        if (settings.Architecture != InstallArchPref.Default && architecture is "x64" or "x86" or "arm64"
+        if (settings.Architecture != InstallArchPref.Default && architecture is "x64" or "x86" or "arm64" or "arm"
             && !architecture.Equals (settings.Architecture.ToString (), StringComparison.OrdinalIgnoreCase))
             return $"Requested {settings.Architecture}, but the selected installer is {preview.Architecture}. Change the architecture option before installing.";
         string? scope = preview.Scope?.ToLowerInvariant ();

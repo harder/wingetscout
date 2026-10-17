@@ -108,6 +108,45 @@ public sealed class DiagnosticsUiTests
     }
 
     [Fact]
+    public void FailedSaveKeepsTheReportAndReenablesActionsForAnotherSave ()
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-diagnostic-recovery-" + Guid.NewGuid ().ToString ("N"));
+        Directory.CreateDirectory (root);
+        try
+        {
+            string path = Path.Combine (root, "missing", "report.txt");
+            DiagnosticDocument document = DiagnosticDocument.ForRun (Failed ());
+            using ListNavigationTests.UiSession ui = new (AppMode.Installed, 1, diagnosticSavePath: _ => path);
+            int phase = 0;
+            ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+            {
+                if (ui.Application.TopRunnable is not RunDiagnosticsDialog viewer) return true;
+                if (phase == 0)
+                {
+                    phase = 1; PressButton (ui, viewer, "text");
+                }
+                else if (phase == 1 && viewer.StatusText.StartsWith ("Failed:"))
+                {
+                    Assert.Equal (document, viewer.Document);
+                    Assert.Empty (Directory.GetFiles (root));
+                    path = Path.Combine (root, "report.txt");
+                    phase = 2; PressButton (ui, viewer, "text");
+                }
+                else if (phase == 2 && viewer.StatusText.StartsWith ("Saved to"))
+                {
+                    Assert.Equal (document.Text, File.ReadAllText (path));
+                    Assert.Equal (path, Assert.Single (Directory.GetFiles (root)));
+                    phase = 3; ui.Press (KeyCode.Esc); return false;
+                }
+                return true;
+            });
+            ui.Invoke ("ShowRunDiagnostics", Failed ());
+            Assert.Equal (3, phase);
+        }
+        finally { Directory.Delete (root, true); }
+    }
+
+    [Fact]
     public void AdvancedOptionsExplainDefaultsAndReturnToReviewWithoutExecuting ()
     {
         RecordingBackend backend = new () { DefaultInstallMode = InstallModePref.Silent };
@@ -139,13 +178,22 @@ public sealed class DiagnosticsUiTests
         Assert.Equal (0, backend.Mutations);
     }
 
-    [Fact]
-    public void ConflictingInstallerPreviewCannotReachConfirmationOrExecution ()
+    [Theory]
+    [InlineData ("arm64")]
+    [InlineData ("arm")]
+    public void ConflictingInstallerPreviewCannotReachConfirmationOrExecution (string architecture)
     {
-        RecordingBackend backend = new () { Preview = new () { Architecture = "arm64", Scope = "machine" } };
+        RecordingBackend backend = new () { Preview = new () { Architecture = architecture, Scope = "machine" } };
         using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend);
+        bool reachedConfirmation = false;
+        ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+        {
+            if (ui.Application.TopRunnable is not Dialog) return true;
+            reachedConfirmation = true; ui.Press (KeyCode.Esc); return false;
+        });
         ui.Invoke ("ConfirmAndInstall", ui.State.Packages [0], null!, new InstallSettings { Architecture = InstallArchPref.X64 });
         ui.PumpUntil (() => !ui.State.Loading);
+        Assert.False (reachedConfirmation);
         Assert.Contains ("Requested X64", ui.State.StatusMessage);
         Assert.Same (ui.Window, ui.Application.TopRunnable);
         Assert.Equal (0, backend.Mutations);
@@ -162,7 +210,8 @@ public sealed class DiagnosticsUiTests
         ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
         {
             if (!probeToken.CanBeCanceled) return true;
-            Assert.IsType<RunDiagnosticsDialog> (ui.Application.TopRunnable);
+            RunDiagnosticsDialog viewer = Assert.IsType<RunDiagnosticsDialog> (ui.Application.TopRunnable);
+            Assert.All (viewer.SubViews.OfType<Button> ().Where (b => !b.Text.Contains ("lose")), button => Assert.False (button.Enabled));
             closed = true; ui.Press (KeyCode.Esc); return false;
         });
         ui.Press (new Key ('D'));

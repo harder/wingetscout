@@ -344,7 +344,9 @@ public sealed class ListNavigationTests
         using UiSession ui = new (AppMode.Installed, 1, backend);
         ui.State.CacheDetail ("Latest", new () { Id = "Latest", Name = "Latest" });
         ui.Press (new Key ('r'));
-        ui.PumpUntil (() => backend.Sources.Count == 1);
+        // Inventory records entry before invoking Load. Wait for response assignment so the
+        // newer worker cannot overtake the first and accidentally receive the delayed result.
+        ui.PumpUntil (() => Volatile.Read (ref loads) == 1);
         ui.Press (new Key ('r'));
         ui.PumpUntil (() => ui.State.Packages.FirstOrDefault ()?.Id == "Latest");
         late.SetResult ([new () { Id = "Old", Name = "Old", Version = "1" }]);
