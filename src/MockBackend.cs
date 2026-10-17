@@ -134,8 +134,8 @@ public sealed class MockBackend : IBackend
         InstallerPreview preview = new ()
         {
             InstallerType = p?.Source == "msstore" ? "Store" : "MSI",
-            Architecture = "x64",
-            Scope = "machine",
+            Architecture = settings?.Architecture is { } arch && arch != InstallArchPref.Default ? arch.ToString ().ToLowerInvariant () : "x64",
+            Scope = settings?.Scope == InstallScopePref.User ? "user" : "machine",
             RequiresElevation = true,
             Version = version ?? p?.AvailableVersion ?? p?.Version
         };

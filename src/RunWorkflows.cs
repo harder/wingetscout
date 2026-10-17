@@ -82,6 +82,11 @@ public static class RetryPlanning
             if (skip is null && request.Version is { } version
                 && !(await backend.ListVersionsAsync (item.Id, ct, item.Source)).Contains (version, StringComparer.OrdinalIgnoreCase))
                 skip = $"Requested version {version} is no longer available.";
+            if (skip is null && request.Kind == OperationKind.Install && request.Settings is not null)
+            {
+                InstallerPreview? preview = await backend.GetInstallerPreviewAsync (item.Id, request.Version, request.Settings, ct, item.Source);
+                skip = InstallOptionPresentation.PreviewConflict (request.Settings, preview);
+            }
             // These APIs accept an ID without a source. Reject ambiguous IDs instead of changing targets.
             if (skip is null && (request.Kind is OperationKind.Download or OperationKind.Uninstall or OperationKind.Repair))
             {

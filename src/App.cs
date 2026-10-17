@@ -63,8 +63,11 @@ public sealed partial class App : Window
     private readonly HashSet<AppMode> _loadedModes = [];
 
     public App (IBackend backend, TimeSpan? smokeDelay = null, WorkflowStore? workflowStore = null,
-        Func<ProcessStartInfo, IDisposable?>? urlLauncher = null)
+        Func<ProcessStartInfo, IDisposable?>? urlLauncher = null,
+        Func<string, bool>? copyDiagnosticText = null, Func<bool, string?>? diagnosticSavePath = null)
     {
+        _copyDiagnosticText = copyDiagnosticText ?? (text => App?.Clipboard?.TrySetClipboardData (text) == true);
+        _diagnosticSavePath = diagnosticSavePath;
         _urlLauncher = urlLauncher ?? (static psi => Process.Start (psi));
         _workflowStore = workflowStore ?? (backend is MockBackend
             ? new WorkflowStore (Path.Combine (new WorkflowStore ().Root, "Mock")) : new WorkflowStore ());
@@ -826,6 +829,7 @@ public sealed partial class App : Window
                                                                            {
                                                                                loading.Dispose ();
                                                                                _state.ViewError = $"Could not load {_state.Mode}: {ex.Message}. Press r to retry.";
+                                                                               _state.LastInventoryError = $"{DateTimeOffset.Now:G}: {_state.ViewError}";
                                                                                _state.Packages = [];
                                                                                _state.ApplyFilter ();
                                                                                SetStatus (msg, isError: true);
@@ -1780,6 +1784,10 @@ public sealed partial class App : Window
                     key.Handled = true;
 
                     return;
+                case 'D':
+                    ShowBackendDiagnostics ();
+                    key.Handled = true;
+                    return;
                 case 't':
                     ShowThemePicker ();
                     key.Handled = true;
@@ -2054,19 +2062,24 @@ public sealed partial class App : Window
             ct => _state.Backend.GetInstallerPreviewAsync (p.Id, version, settings, ct, p.Source),
             preview =>
             {
+                string? conflict = InstallOptionPresentation.PreviewConflict (settings, preview);
+                if (conflict is not null)
+                {
+                    SetStatus (conflict, isError: true);
+                    RefreshStatusBar ();
+                    return;
+                }
                 string title = version is null ? $"Install {p.Name}?" : $"Install {p.Name} {version}?";
-                List<string> lines = [];
+                List<string> lines = [$"Package: {p.Id}\nSource: {p.Source}",
+                    InstallOptionPresentation.Describe (settings, _state.Backend.DefaultInstallMode)];
 
                 if (!string.IsNullOrEmpty (preview?.Summary))
                 {
-                    lines.Add (preview!.Summary);
+                    lines.Add ($"Selected installer: {preview!.Summary}");
                 }
-
-                string optionsLine = settings is null ? string.Empty : DescribeSettings (settings);
-
-                if (optionsLine.Length > 0)
+                else
                 {
-                    lines.Add (optionsLine);
+                    lines.Add ("Installer preview unavailable. WinGet resolves these options during execution.");
                 }
 
                 string body = lines.Count == 0 ? title : $"{title}\n\n{string.Join ("\n", lines)}";
@@ -2092,33 +2105,6 @@ public sealed partial class App : Window
                         return true;
                     });
             });
-    }
-
-    private static string DescribeSettings (InstallSettings s)
-    {
-        List<string> parts = [];
-
-        if (s.Scope != InstallScopePref.Default)
-        {
-            parts.Add (s.Scope == InstallScopePref.Machine ? "machine" : "user");
-        }
-
-        if (s.Mode != InstallModePref.Default)
-        {
-            parts.Add (s.Mode.ToString ().ToLowerInvariant ());
-        }
-
-        if (s.Architecture != InstallArchPref.Default)
-        {
-            parts.Add (s.Architecture.ToString ().ToLowerInvariant ());
-        }
-
-        if (!string.IsNullOrWhiteSpace (s.CustomArgs))
-        {
-            parts.Add ($"custom: {s.CustomArgs}");
-        }
-
-        return parts.Count == 0 ? string.Empty : "Options: " + string.Join (" · ", parts);
     }
 
     /// <summary>Fetch the installer to disk without installing, reusing the operation progress bar.</summary>
@@ -2316,7 +2302,7 @@ public sealed partial class App : Window
             return null;
         }
 
-        using AdvancedInstallDialog dlg = new (p.Name);
+        using AdvancedInstallDialog dlg = new (p.Name, _state.Backend.DefaultInstallMode);
         App.Run (dlg);
 
         return dlg.Result;

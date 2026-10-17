@@ -28,6 +28,14 @@ installer without installing it. `u` upgrades and `x` uninstalls the
 highlighted package. On a supported COM backend, `V` verifies an install
 and `R` repairs it. `p` pins or unpins a package.
 
+Advanced options explain whether each setting is a default or an explicit
+override. **Review** fetches the installer preview before the final confirmation;
+it does not install anything. The confirmation separates requested options from
+the selected installer. A known architecture or scope conflict blocks the install
+so you can change the option. If no preview is available, the confirmation says
+that WinGet will resolve the options during execution. The COM backend's default
+mode is Silent; the CLI leaves the mode to WinGet.
+
 On Search or Upgrades, `Space` marks a row and `a` toggles all visible
 rows. `B` reviews selected Search results before installation; `U`
 reviews selected upgrades before running them. The review shows items
@@ -62,6 +70,25 @@ and pins as applicable, then show a review with ready and skipped entries.
 Nothing runs until you approve that review. Original results stay in history.
 Pin changes and older entries without a recorded request have no retry action.
 An explicit version is skipped if the backend cannot confirm its availability.
+
+Use **Copy**, **Save text**, or **Save JSON** in a run's diagnostic view to keep
+the displayed package's report. Save lets you choose a file and asks before
+replacing an existing file. Cancelling the save dialog or a failed save leaves the original file
+and history intact. Clipboard errors stay in the viewer so you can save instead.
+
+## Backend and source diagnostics
+
+Press `D` or choose **Backend and source diagnostics** in the action menu.
+The panel shows the active backend and version, process architecture, supported
+verify/repair actions, any recorded COM fallback reason, active source filter,
+and the most recent inventory load error in this session.
+
+Source checks query each configured source for `Microsoft.PowerToys`. The report
+distinguishes a successful query with no matches from a failed query or failed
+source discovery. These are read-only catalog checks; they do not establish that
+installation will succeed. **Refresh** repeats the checks; closing the panel
+cancels outstanding work. **Copy**, **Save text**, and **Save JSON** use the
+current completed report. No package changes are performed by the panel.
 
 ## Saved sets and update checks
 

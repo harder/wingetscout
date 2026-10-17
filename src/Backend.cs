@@ -3,6 +3,8 @@ namespace WinGetScout;
 
 public interface IBackend
 {
+    // The mode applied when advanced options leave Mode at Default. Default means WinGet decides.
+    InstallModePref DefaultInstallMode => InstallModePref.Default;
     // `source` is a catalog name (e.g. "winget", "msstore", or a custom REST source) to scope the
     // query to, or null for all configured sources. Discover the available names via ListSourcesAsync.
     Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct);
@@ -12,6 +14,7 @@ public interface IBackend
 
     // The names of the configured package sources (catalogs), e.g. ["winget", "msstore"], used to
     // build the source-filter cycle dynamically instead of hard-coding the two predefined sources.
+    // Discovery failures propagate; an empty list means no sources were reported.
     // The COM backend reads them from PackageManager.GetPackageCatalogs(); the CLI parses
     // `winget source list`; the mock returns the two defaults.
     Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct);

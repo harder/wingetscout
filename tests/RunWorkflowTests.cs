@@ -433,7 +433,7 @@ public sealed class RunWorkflowTests
         Assert.DoesNotContain ("upgrade", Ids (AppMode.Upgrades, Tool (), fresh: false));
         Package pinned = Tool (); pinned.PinState = new (PinStateKind.Blocking);
         Assert.DoesNotContain ("upgrade", Ids (AppMode.Upgrades, pinned));
-        Assert.Equal (["history"], Ids (AppMode.Search, null));
+        Assert.Equal (["history", "diagnostics"], Ids (AppMode.Search, null));
         Assert.Contains ("batch", Ids (AppMode.Search, null, selected: 2));
     }
 
@@ -446,6 +446,9 @@ public sealed class RunWorkflowTests
         public Exception? PinFailure { get; set; }
         public Exception? InstalledFailure { get; set; }
         public Exception? SourceFailure { get; set; }
+        public Exception? DescriptionFailure { get; set; }
+        public InstallerPreview? Preview { get; set; }
+        public InstallModePref DefaultInstallMode { get; set; }
         public Func<CancellationToken, Task<OpResult>>? InstallResult { get; set; }
         public Func<string?, IReadOnlyList<string>>? Versions { get; set; }
         public Func<string?, Exception?>? SearchFailure { get; set; }
@@ -480,7 +483,7 @@ public sealed class RunWorkflowTests
         public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
         {
             PreviewSources.Add (source);
-            return Task.FromResult<InstallerPreview?> (null);
+            return Task.FromResult (Preview);
         }
         private Task<OpResult> Execute (OperationKind kind, string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
         {
@@ -498,6 +501,7 @@ public sealed class RunWorkflowTests
         public bool CanRepair { get; set; }
         public Task<InstallVerification?> VerifyInstalledAsync (string id, CancellationToken ct) => Task.FromResult<InstallVerification?> (null);
         public Task<IReadOnlyDictionary<string, PinState>> ListPinsAsync (CancellationToken ct) => PinFailure is null ? Task.FromResult (Pins) : Task.FromException<IReadOnlyDictionary<string, PinState>> (PinFailure);
-        public Task<string> DescribeAsync (CancellationToken ct) => Task.FromResult ("Test backend");
+        public Task<string> DescribeAsync (CancellationToken ct) => DescriptionFailure is null
+            ? Task.FromResult ("Test backend") : Task.FromException<string> (DescriptionFailure);
     }
 }
