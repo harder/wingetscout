@@ -21,19 +21,25 @@ public static class PackageActions
         bool canVerify, bool canRepair, int selectedCount, PackageDetail? detail)
     {
         List<PackageAction> actions = [];
+        bool hasSelection = selectedCount > 0 && (mode is AppMode.Search or AppMode.Upgrades);
+        if (hasSelection)
+        {
+            string action = mode == AppMode.Search ? "install" : "upgrade";
+            actions.Add (new ("batch", $"Review {action} plan ({selectedCount} selected)…"));
+        }
         if (package is not null)
         {
             bool exact = !package.IsTruncated && !string.IsNullOrWhiteSpace (package.Id);
             if (mode == AppMode.Search && exact)
             {
-                actions.Add (new ("install", "Install latest…"));
+                actions.Add (new ("install", hasSelection ? "Install highlighted package…" : "Install latest…"));
                 actions.Add (new ("version", "Install specific version…"));
                 actions.Add (new ("advanced", "Advanced install…"));
             }
             if (mode != AppMode.Search)
             {
                 if (pinsFresh && !package.PinState.IsPinned && !string.IsNullOrWhiteSpace (package.AvailableVersion))
-                    actions.Add (new ("upgrade", "Upgrade…"));
+                    actions.Add (new ("upgrade", hasSelection ? "Upgrade highlighted package…" : "Upgrade…"));
                 if (exact)
                 {
                     actions.Add (new ("uninstall", "Uninstall…"));
@@ -52,11 +58,7 @@ public static class PackageActions
                 if (!string.IsNullOrWhiteSpace (detail.ReleaseNotesUrl)) actions.Add (new ("changelog", "Open release notes"));
             }
         }
-        if (selectedCount > 0 && (mode is AppMode.Search or AppMode.Upgrades))
-        {
-            string action = mode == AppMode.Search ? "install" : "upgrade";
-            actions.Add (new ("batch", $"Review {action} plan ({selectedCount} selected)…"));
-        }
+        if (hasSelection) actions.Add (new ("clear-selection", $"Clear selection ({selectedCount} packages)"));
         actions.Add (new ("history", "Recent runs…"));
         actions.Add (new ("diagnostics", "Backend and source diagnostics…"));
         return actions;

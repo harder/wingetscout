@@ -19,14 +19,24 @@ refreshes the view. `S` cycles sort fields and direction; sortable table
 headers can also be clicked. `P` cycles the pin filter in Installed or
 Upgrades.
 
+In narrow windows, the list omits the ID column and, when necessary, the
+Upgrades source column so package names and versions remain visible. Full IDs
+and sources stay in Package Details; widening the window restores the columns.
+Changing themes or cycling pin filters keeps the highlighted package when it
+is still visible. Help supports arrow keys, PageUp/PageDown, and Home/End.
+
 ## Install, upgrade, and inspect
 
 Select a row to see its metadata. `i` starts an install; `I` chooses a
 specific version when the backend can list versions, or lets you enter one
 when it cannot. `A` opens advanced install settings and `d` downloads an
-installer without installing it. `u` upgrades and `x` uninstalls the
-highlighted package. On a supported COM backend, `V` verifies an install
+installer without installing it. `u` upgrades the highlighted package, or reviews
+all marked packages in Upgrades. In Search, `i` also reviews all marked packages
+when there is a selection. `x` uninstalls the highlighted package.
+On a supported COM backend, `V` verifies an install
 and `R` repairs it. `p` pins or unpins a package.
+Pinned packages must be unpinned before upgrading. If pin status is unavailable,
+refresh successfully before starting an upgrade.
 
 Advanced options explain whether each setting is a default or an explicit
 override. **Review** fetches the installer preview before the final confirmation;
@@ -41,14 +51,32 @@ rows. `B` reviews selected Search results before installation; `U`
 reviews selected upgrades before running them. The review shows items
 that cannot be run and why. An install or upgrade never starts merely
 because a row was marked.
+In a plan, Enter or a double-click opens the highlighted package's details.
+Use Tab to reach the action buttons, then approve **Install (N)** or
+**Upgrade (N)** to run the N ready packages. Skipped packages are excluded.
+
+When packages are marked, the footer shows `u Upgrade N` or `i Install N`, and
+the first action-menu entry reviews the whole selection. The separate
+**Upgrade highlighted package** / **Install highlighted package** menu entries
+act only on the cursor row. All paths still require confirmation or plan approval.
+Batch progress shows the current package number, total, and backend phase on a
+dedicated status row. Results list every success, failure, and skipped package;
+inventory refresh starts as soon as the batch finishes, while results are open.
+Successful items are deselected; failed or cancelled items stay marked for review.
 
 List headings show how many rows are visible out of the results loaded for the
 current source/search. Selection counts include hidden rows and packages retained
 from previous searches. `a` changes only visible rows; `B` and `U` review the entire
 selection, including hidden packages.
+Press `Esc` outside an input or active check/operation, or choose **Clear selection**
+in Actions, to clear every marked package, including hidden ones. Sorting keeps the
+highlight on the same package, and install/upgrade reviews list visible packages in their
+current order before any hidden selections.
 Plans refresh catalog or upgrade inventory before review. Removed sources,
 missing packages, and ambiguous matches are skipped individually. Failed inventory
 or catalog lookups cannot authorize an operation.
+`Esc` cancels a pending plan check. Switching tabs or sources, or refreshing the
+inventory, also discards that check so a late result cannot open an outdated review.
 
 Press `m` or `Shift+F10`, or right-click a package row, to open its contextual
 actions. The menu reflects the current tab, backend capabilities, and known pin
@@ -62,8 +90,9 @@ the current input or operation as appropriate, and `q` quits.
 In recent runs, open a run and choose **Details** (or press Enter on a package)
 to inspect timing, source, versions, install options, backend, CLI exit codes,
 and diagnostic output (up to 16,384 characters per package). Use arrow keys,
-Page Up/Down, Home/End, or scrollbars to navigate the details. **Retry selected**
-also handles cancelled packages; **Retry failed** includes only failed entries.
+Page Up/Down, Home/End, or scrollbars to navigate the details. **Retry package**
+uses the highlighted row. **Retry unfinished (N)** includes retryable failed and
+skipped packages, including packages cancelled or not started in an interrupted batch.
 Retries recheck the exact package/source, installed state, available version,
 and pins as applicable, then show a review with ready and skipped entries.
 **Details** in the review shows the full request, including advanced options.
