@@ -23,6 +23,9 @@ Building the actual AOT binary requires a **Windows host** with Visual Studio Bu
 The [architecture guide](docs/architecture.md) maps the backend, UI, workflow,
 and release code before you change their boundaries.
 
+Package-manager distribution targets WinGet only; keep packaging changes within
+that scope unless another distribution channel is explicitly requested.
+
 For UI changes, cover the interaction through the existing driverless UI sessions:
 `BatchClarityUiTests` and `BatchExecutionUiTests` exercise selection, approval,
 progress, refresh, and retry; `UxInteractionTests` covers cancellation and late

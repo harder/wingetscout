@@ -2,6 +2,9 @@
 
 ## Current release plan
 
+Package-manager distribution targets WinGet only. GitHub Releases hosts the
+portable assets used by the WinGet manifests and direct downloads.
+
 The first WinGet community package uses the complete **portable ZIP**. The release workflow publishes x64 and ARM64 ZIPs, SHA-256 checksums, and build attestations. It generates the WinGet manifests from the ZIPs downloaded back from the published GitHub Release. The ZIPs and executables are currently **unsigned**.
 
 WinGet verifies the ZIP against `InstallerSha256`, extracts it into a managed portable package directory, and makes the `wingetscout` command available on `PATH`. That provides installation, upgrade, and uninstall behavior; **WinGet does not sign the executable or grant it a trusted publisher identity**. A first run may still encounter Windows reputation warnings. A published GitHub checksum or attestation proves different things from a Windows code signature.
