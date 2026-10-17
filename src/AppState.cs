@@ -73,7 +73,9 @@ public sealed class AppState
 
     internal bool TryGetCachedDetail (Package context, out PackageDetail detail)
     {
-        if (!_detailCache.TryGet (context.Id, out detail))
+        if (!_detailCache.TryGet (context.Id, out detail)
+            || !detail.Id.Equals (context.Id, StringComparison.OrdinalIgnoreCase)
+            || !detail.Source.Equals (context.Source, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

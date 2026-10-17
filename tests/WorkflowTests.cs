@@ -121,7 +121,7 @@ public sealed class WorkflowTests
     }
 
     [Fact]
-    public async Task SavedSetResolution_IsBoundedAndPreservesOrder ()
+    public async Task InstallReviewResolution_IsBoundedAndPreservesOrder ()
     {
         List<Package> stubs = [.. Enumerable.Range (0, 12).Select (i => new Package
         {
@@ -129,21 +129,23 @@ public sealed class WorkflowTests
         })];
         int active = 0;
         int maximum = 0;
-        List<Package> resolved = await BatchPlanning.ResolveUnresolvedAsync (stubs, async (item, ct) =>
+        RunWorkflowTests.RecordingBackend backend = new () { CatalogQuery = async (id, ct) =>
         {
             int now = Interlocked.Increment (ref active);
             InterlockedExtensions.RecordMaximum (ref maximum, now);
             try
             {
                 await Task.Delay (25, ct);
-                return new Package { Id = item.Id, Name = item.Name, Source = item.Source, Version = "1" };
+                return new [] { new Package { Id = id, Name = id, Source = "winget", Version = "1" } };
             }
             finally { Interlocked.Decrement (ref active); }
-        }, CancellationToken.None);
+        } };
+        BatchPlan plan = await BatchPlanning.ReviewInstallsAsync (backend, stubs, CancellationToken.None);
 
         Assert.InRange (maximum, 2, 4);
-        Assert.Equal (stubs.Select (x => x.Id), resolved.Select (x => x.Id));
-        Assert.All (resolved, x => Assert.Equal ("1", x.Version));
+        Assert.Equal (stubs.Select (x => x.Id), plan.Items.Select (x => x.Package.Id));
+        Assert.Equal (stubs.Count, plan.Ready);
+        Assert.All (plan.Items, x => Assert.Equal ("1", x.Package.Version));
     }
 
     [Fact]

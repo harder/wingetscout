@@ -8,17 +8,56 @@ public sealed record PackageChoice (string Id, string Name, string Source);
 public sealed record PackageSet (string Name, List<PackageChoice> Packages);
 public sealed record PackageSetFile (List<PackageSet> Sets);
 
-public sealed record RunItem (string Id, string Name, string Source, string Status, string Reason);
+public sealed record RunItem (string Id, string Name, string Source, string Status, string Reason)
+{
+    public DateTimeOffset? StartedAtUtc { get; init; }
+    public DateTimeOffset? FinishedAtUtc { get; init; }
+    public string? InstalledVersion { get; init; }
+    public string? TargetVersion { get; init; }
+    public string? Diagnostics { get; init; }
+    public string? Backend { get; init; }
+    public int? ExitCode { get; init; }
+    public RunRequest? Request { get; init; }
+
+    public bool CanRetry => (Status is "Failed" or "Skipped") && Request is { IsSupported: true }
+        && !string.IsNullOrWhiteSpace (Id) && !string.IsNullOrWhiteSpace (Source);
+
+    public static RunItem Capture (Package package, RunRequest request, DateTimeOffset started,
+        DateTimeOffset finished, OpResult? result, bool cancelled, string? skippedReason = null) =>
+        new (package.Id, package.Name, package.Source,
+            cancelled || skippedReason is not null ? "Skipped" : result!.Success ? "Succeeded" : "Failed",
+            skippedReason ?? (cancelled ? "Cancelled." : RunRecord.CompactReason (result!.Message)))
+        {
+            StartedAtUtc = started, FinishedAtUtc = finished, Request = request,
+            InstalledVersion = package.Version,
+            TargetVersion = request.Version ?? (request.Kind switch
+            {
+                OperationKind.Upgrade => package.AvailableVersion,
+                OperationKind.Install or OperationKind.Download => package.AvailableVersion ?? package.Version,
+                OperationKind.Repair or OperationKind.Uninstall => package.Version,
+                _ => null
+            }),
+            Diagnostics = DiagnosticText.Clean (result?.Diagnostics ?? result?.Message ?? skippedReason ?? "Cancelled."),
+            Backend = result?.Backend, ExitCode = result?.ExitCode
+        };
+
+    public string DetailText () => $"{Name} [{Id}]\nSource: {Source}\nStatus: {Status}\n"
+        + $"Installed/catalog version: {InstalledVersion ?? "Not recorded"}\nTarget: {TargetVersion ?? "Not recorded / backend default"}\n"
+        + $"Started: {StartedAtUtc?.ToLocalTime ().ToString ("G") ?? "Not recorded"}\n"
+        + $"Finished: {FinishedAtUtc?.ToLocalTime ().ToString ("G") ?? "Not recorded"}\n"
+        + $"Duration: {(StartedAtUtc is { } start && FinishedAtUtc is { } end ? $"{Math.Max (0, (end - start).TotalSeconds):0.0}s" : "Not recorded")}\n"
+        + $"Backend: {Backend ?? "Not recorded"}\nExit code: {(ExitCode is { } code ? $"{code} (0x{code:X8})" : "Not recorded")}\n"
+        + $"{Request?.Description}\n\n{DiagnosticText.Clean (Diagnostics ?? Reason)}";
+}
 public sealed record RunRecord (DateTimeOffset StartedAtUtc, DateTimeOffset FinishedAtUtc, string Action, List<RunItem> Items)
 {
     public static RunRecord SinglePackage (
         Package package, OperationKind kind, DateTimeOffset startedAtUtc, DateTimeOffset finishedAtUtc,
-        OpResult? result, bool cancelled)
+        OpResult? result, bool cancelled, RunRequest? request = null)
     {
         if (!cancelled && result is null) throw new ArgumentNullException (nameof (result));
-        RunItem item = new (package.Id, package.Name, package.Source,
-            cancelled ? "Skipped" : result!.Success ? "Succeeded" : "Failed",
-            cancelled ? "Cancelled." : CompactReason (result!.Message));
+        RunItem item = RunItem.Capture (package, request ?? new (kind, result?.Operation.Version),
+            startedAtUtc, finishedAtUtc, result, cancelled);
         return new (startedAtUtc, finishedAtUtc, kind.ToString (), [item]);
     }
 

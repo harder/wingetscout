@@ -340,10 +340,22 @@ public sealed class BoundedDetailCacheTests
     }
 
     [Fact]
+    public void AppState_DoesNotMergeCachedDetailsFromAnotherSource ()
+    {
+        AppState state = new (new MockBackend ());
+        PackageDetail detail = new () { Id = "Acme.Foo", Name = "Foo", Source = "winget", Version = "1" };
+        Assert.True (state.CacheDetail (detail.Id, detail));
+        Assert.False (state.TryGetCachedDetail (new () { Id = detail.Id, Name = "Foo", Source = "msstore", Version = "2" }, out _));
+        Assert.True (state.TryGetCachedDetail (new () { Id = detail.Id, Name = "Foo", Source = "WINGET" }, out PackageDetail original));
+        Assert.Equal ("1", original.Version);
+        Assert.Equal ("winget", original.Source);
+    }
+
+    [Fact]
     public void AppState_CacheRefreshReaccountsAndInvalidationRemovesEntry ()
     {
         AppState state = new (new MockBackend ());
-        PackageDetail detail = new () { Id = "Acme.Foo", Name = "Foo" };
+        PackageDetail detail = new () { Id = "Acme.Foo", Name = "Foo", Source = "winget" };
         Assert.True (state.CacheDetail (detail.Id, detail));
         Package context = new ()
         {

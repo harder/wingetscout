@@ -36,43 +36,24 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     {
         ProcessRunner.RunResult upgrades = await RunDetailedWithCodeAsync (
             ListUpgradesArgs (null), "winget", CommandTimeout (ListUpgradesArgs (null)), ct);
-        EnsureCompleteForParsing (upgrades, "winget", ListUpgradesArgs (null));
-        if (upgrades.Code != 0) throw new InvalidOperationException ($"winget upgrade exited with code {upgrades.Code}.");
+        string output = VerifiedQueryOutput (upgrades, "winget", ListUpgradesArgs (null));
 
-        return (ParseTable (upgrades.Output, hasAvailable: true), await ListPinsAsync (ct));
+        return (ParseTable (output, hasAvailable: true), await ListPinsAsync (ct));
     }
 
     /// <summary>
     /// The configured source names from `winget source list`, e.g. ["winget", "msstore"].
-    /// Falls back to the two predefined sources if the command fails or parses empty.
+    /// Query failures propagate; callers must not treat fallback names as a verified snapshot.
     /// </summary>
     public async Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct)
     {
-        try
-        {
-            string output = await RunAsync (["source", "list"], ct);
-            IReadOnlyList<string> names = ParseSourceNames (output);
-
-            return names.Count > 0 ? names : ["winget", "msstore"];
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (BoundedOutputException)
-        {
-            // Partial source output must never be treated as a complete source snapshot.
-            throw;
-        }
-        catch
-        {
-            return ["winget", "msstore"];
-        }
+        string output = await RunAsync (["source", "list"], ct);
+        return ParseSourceNames (output);
     }
 
-    public async Task<PackageDetail?> ShowAsync (string id, CancellationToken ct)
+    public async Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
     {
-        string output = await RunAsync (ShowArgs (id), ct);
+        string output = await RunAsync (ShowArgs (id, source), ct);
 
         return ParseShow (id, output);
     }
@@ -103,10 +84,10 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     // these degrade: an empty version list makes the UI fall back to a free-text version prompt,
     // and a null preview means the install confirm shows no installer summary line. The COM
     // backend is the one that answers these.
-    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct)
+    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
         => Task.FromResult<IReadOnlyList<string>> ([]);
 
-    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct)
+    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
         => Task.FromResult<InstallerPreview?> (null);
 
     // No CLI equivalent to CheckInstalledStatus — null signals "verify unavailable on this backend".
@@ -130,10 +111,10 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     // capture as a whole rather than scrape. The COM backend is the one that reports progress.
     public async Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
     {
-        (int code, string output) = await RunWithCodeAsync (InstallArgs (id, version, settings, source), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (InstallArgs (id, version, settings, source), ct);
         Operation op = new () { Kind = OperationKind.Install, PackageId = id, Version = version };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, result);
     }
 
     public async Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct)
@@ -153,48 +134,86 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
             return new () { Operation = op, Success = false, Message = $"Could not prepare download folder '{dir}': {ex.Message}" };
         }
 
-        (int code, string output) = await RunWithCodeAsync (DownloadArgs (id, version, dir), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (DownloadArgs (id, version, dir), ct);
 
-        return new () { Operation = op, Success = code == 0, Message = code == 0 ? $"Downloaded to {dir}" : output };
+        return CliResult (op, result, result.Code == 0 ? $"Downloaded to {dir}" : null);
     }
 
     public async Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct)
     {
-        (int code, string output) = await RunWithCodeAsync (UninstallArgs (id), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (UninstallArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Uninstall, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, result);
     }
 
     public async Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
     {
         // Try id (non-exact) first, then fall back to name (exact).
-        (int code, string output) = await RunWithCodeAsync (UpgradeByIdArgs (id, source), ct);
-
-        if (code != 0)
+        ProcessRunner.RunResult byId = await RunOperationCommandAsync (UpgradeByIdArgs (id, source), ct);
+        ProcessRunner.RunResult? byName = null;
+        if (byId.Code != 0)
         {
-            (code, output) = await RunWithCodeAsync (UpgradeByNameArgs (id, source), ct);
+            byName = await RunOperationCommandAsync (UpgradeByNameArgs (id, source), ct);
         }
 
         Operation op = new () { Kind = OperationKind.Upgrade, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliUpgradeResult (op, byId, byName);
     }
 
     public async Task<OpResult> PinAsync (string id, CancellationToken ct)
     {
-        (int code, string output) = await RunWithCodeAsync (PinAddArgs (id), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (PinAddArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Pin, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, result);
     }
 
     public async Task<OpResult> UnpinAsync (string id, CancellationToken ct)
     {
-        (int code, string output) = await RunWithCodeAsync (PinRemoveArgs (id), ct);
+        ProcessRunner.RunResult result = await RunOperationCommandAsync (PinRemoveArgs (id), ct);
         Operation op = new () { Kind = OperationKind.Unpin, PackageId = id };
 
-        return new () { Operation = op, Success = code == 0, Message = output };
+        return CliResult (op, result);
+    }
+
+    private static Task<ProcessRunner.RunResult> RunOperationCommandAsync (IReadOnlyList<string> args, CancellationToken ct) =>
+        RunDetailedWithCodeAsync (args, "winget", CommandTimeout (args), ct);
+
+    internal static OpResult CliResult (Operation operation, int code, string output, string? message = null) =>
+        CliResult (operation, new ProcessRunner.RunResult (code, output, false, false, false), message);
+
+    internal static OpResult CliResult (Operation operation, ProcessRunner.RunResult result, string? message = null, string? diagnostics = null) => new ()
+    {
+        Operation = operation, Success = result.Code == 0, Message = message ?? result.Output,
+        Backend = "WinGet CLI", ExitCode = result.Code, Diagnostics = diagnostics ?? OperationDiagnostics (result, DiagnosticText.MaxCharacters)
+    };
+
+    internal static OpResult CliUpgradeResult (Operation operation, ProcessRunner.RunResult byId, ProcessRunner.RunResult? byName)
+    {
+        string firstHeader = $"ID lookup attempt · exit {byId.Code} (0x{byId.Code:X8})\n";
+        int firstBudget = (byName is null ? DiagnosticText.MaxCharacters : DiagnosticText.MaxCharacters / 2) - firstHeader.Length;
+        string diagnostics = firstHeader + OperationDiagnostics (byId, firstBudget);
+        if (byName is { } second)
+        {
+            string secondHeader = $"\n\nName lookup attempt · exit {second.Code} (0x{second.Code:X8})\n";
+            diagnostics += secondHeader + OperationDiagnostics (second, DiagnosticText.MaxCharacters - diagnostics.Length - secondHeader.Length);
+        }
+        return CliResult (operation, byName ?? byId, diagnostics: diagnostics);
+    }
+
+    private static string OperationDiagnostics (ProcessRunner.RunResult result, int budget)
+    {
+        string stdout = result.StdoutDiagnostics ?? result.Output;
+        string stderr = result.StderrDiagnostics ?? string.Empty;
+        if (stderr.Length == 0) return DiagnosticText.Clean (stdout, budget);
+        if (stdout.Length == 0) return DiagnosticText.Clean (stderr, budget);
+        const string stdoutHeader = "Standard output:\n";
+        const string stderrHeader = "\n\nStandard error:\n";
+        int remaining = budget - stdoutHeader.Length - stderrHeader.Length;
+        return stdoutHeader + DiagnosticText.Clean (stdout, remaining / 2)
+            + stderrHeader + DiagnosticText.Clean (stderr, remaining - remaining / 2);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -237,8 +256,12 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         }
     }
 
-    internal static string [] ShowArgs (string id) =>
-        ["show", "--id", id, "--exact", "--accept-source-agreements"];
+    internal static string [] ShowArgs (string id, string? source = null)
+    {
+        List<string> args = ["show", "--id", id, "--exact", "--accept-source-agreements"];
+        AppendSource (args, source);
+        return [.. args];
+    }
 
     internal static string [] InstalledByIdArgs (string id) =>
         ["list", "--id", id, "--exact", "--accept-source-agreements", "--disable-interactivity"];
@@ -587,9 +610,23 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         CancellationToken ct)
     {
         ProcessRunner.RunResult result = await RunDetailedWithCodeAsync (args, executable, timeout, ct);
-        EnsureCompleteForParsing (result, executable, args);
+        return parser (VerifiedQueryOutput (result, executable, args));
+    }
 
-        return parser (result.Output);
+    internal static string VerifiedQueryOutput (ProcessRunner.RunResult result, string executable, IReadOnlyList<string> args)
+    {
+        EnsureCompleteForParsing (result, executable, args);
+        if (result.Code == 0) return result.Output;
+
+        // WinGet uses this HRESULT for a successful query with no matching packages.
+        // A failed source/query must never become an authoritative empty inventory.
+        const int NoApplicationsFound = unchecked ((int)0x8A150014);
+        if (result.Code == NoApplicationsFound && args.Count > 0 && args [0] is "list" or "upgrade" or "search" or "show")
+            return string.Empty;
+
+        string command = args.Count == 0 ? executable : $"{executable} {args [0]}";
+        throw new InvalidOperationException (
+            $"{command} exited with code {result.Code} (0x{result.Code:X8}): {RunRecord.CompactReason (result.Output)}");
     }
 
     internal static void EnsureCompleteForParsing (

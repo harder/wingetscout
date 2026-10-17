@@ -1,6 +1,9 @@
 namespace WinGetScout;
 
-public sealed record BatchPlanItem (Package Package, bool CanRun, string Reason);
+public sealed record BatchPlanItem (Package Package, bool CanRun, string Reason)
+{
+    public RunRequest? Request { get; init; }
+}
 
 public sealed record BatchPlan (string Action, List<BatchPlanItem> Items)
 {
@@ -15,23 +18,61 @@ public static class BatchPlanning
     public static List<Package> SelectedPackages (IEnumerable<Package> packages, IReadOnlySet<string> keys) =>
         [.. packages.Where (p => keys.Contains (Key (p)))];
 
-    /// <summary>Resolve saved entries concurrently while preserving their order in the review plan.</summary>
-    public static async Task<List<Package>> ResolveUnresolvedAsync (
-        IReadOnlyList<Package> selected,
-        Func<Package, CancellationToken, Task<Package?>> resolve,
-        CancellationToken ct)
+    internal static Package? ExactMatch (IEnumerable<Package> packages, string id, string source, out bool ambiguous)
     {
-        Package [] resolved = [.. selected];
-        await Parallel.ForEachAsync (Enumerable.Range (0, resolved.Length),
-            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-            async (index, token) =>
+        Package [] matches = packages.Where (p => p.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+            && p.Source.Equals (source, StringComparison.OrdinalIgnoreCase)).Take (2).ToArray ();
+        ambiguous = matches.Length > 1;
+        return matches.Length == 1 ? matches [0] : null;
+    }
+
+    public static async Task<BatchPlan> ReviewInstallsAsync (IBackend backend, IReadOnlyList<Package> selected, CancellationToken ct)
+    {
+        IReadOnlyList<Package> installed = await backend.ListInstalledAsync (null, ct);
+        IReadOnlyList<string> sources = await backend.ListSourcesAsync (ct);
+        BatchPlanItem [] items = new BatchPlanItem [selected.Count];
+        await Parallel.ForEachAsync (Enumerable.Range (0, selected.Count),
+            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (index, token) =>
             {
-                Package item = resolved [index];
-                if (!string.IsNullOrEmpty (item.Version)) return;
-                Package? match = await resolve (item, token);
-                if (match is not null) resolved [index] = match;
+                Package original = selected [index];
+                if (string.IsNullOrWhiteSpace (original.Id) || original.IsTruncated
+                    || !sources.Contains (original.Source, StringComparer.OrdinalIgnoreCase))
+                {
+                    items [index] = ForInstalls ([original], installed, sources).Items [0];
+                    return;
+                }
+                IReadOnlyList<Package> matches = await backend.SearchAsync (original.Id, original.Source, token);
+                Package? current = ExactMatch (matches, original.Id, original.Source, out bool ambiguous);
+                items [index] = current is null
+                    ? new (original, false, ambiguous ? "Package ID and source are ambiguous: multiple exact matches were returned."
+                        : "Exact package and source are no longer available.")
+                    : ForInstalls ([current], installed, sources).Items [0];
             });
-        return [.. resolved];
+        return new ("Install", [.. items]);
+    }
+
+    public static async Task<BatchPlan> ReviewUpgradesAsync (IBackend backend, IReadOnlySet<string> selected, CancellationToken ct)
+    {
+        IReadOnlyList<Package> current = await backend.ListUpgradesAsync (null, ct);
+        IReadOnlyDictionary<string, PinState> pins = await backend.ListPinsAsync (ct);
+        List<BatchPlanItem> items = [];
+        foreach (string key in selected)
+        {
+            int separator = key.IndexOf ('\u001f');
+            string id = separator < 0 ? key : key [(separator + 1)..];
+            string source = separator < 0 ? string.Empty : key [..separator];
+            Package? package = ExactMatch (current, id, source, out bool ambiguous);
+            if (package is null)
+            {
+                items.Add (new (new () { Id = id, Name = id, Source = source }, false,
+                    ambiguous ? "Package ID and source are ambiguous: multiple exact matches were returned."
+                        : "Package is no longer present in the current upgrade inventory."));
+                continue;
+            }
+            package.PinState = pins.FirstOrDefault (x => x.Key.Equals (package.Id, StringComparison.OrdinalIgnoreCase)).Value;
+            items.AddRange (ForUpgrades ([package], pinsFresh: true).Items);
+        }
+        return new ("Upgrade", items);
     }
 
     public static BatchPlan ForUpgrades (IEnumerable<Package> selected, bool pinsFresh)

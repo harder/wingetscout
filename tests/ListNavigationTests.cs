@@ -10,7 +10,7 @@ public sealed class TerminalUiCollection;
 public sealed class ListNavigationTests
 {
     public static IEnumerable<object []> DialogCases () =>
-        from kind in new [] { "versions", "sets", "history", "results", "plan" }
+        from kind in new [] { "versions", "sets", "history", "results", "plan", "actions" }
         from count in new [] { 0, 1, 60 }
         select new object [] { kind, count };
 
@@ -28,6 +28,7 @@ public sealed class ListNavigationTests
             "sets" => new SetManagerDialog (versions.Select (v => new PackageSet (v, [])).ToArray (), 0),
             "history" => new RunHistoryDialog (versions.Select (_ => record).ToArray ()),
             "results" => new RunRecordDialog (record),
+            "actions" => new PackageActionDialog ("Example", versions.Select (v => new PackageAction (v, v)).ToArray ()),
             _ => new BatchPlanDialog (new ("Install", versions.Select (v => new BatchPlanItem (
                 new () { Id = v, Name = v }, true, "Ready")).ToList ()))
         };
@@ -37,6 +38,7 @@ public sealed class ListNavigationTests
         try
         {
             ListView list = Assert.Single (dialog.SubViews.OfType<ListView> ());
+            if (kind is "plan" or "results" or "history" or "actions") Assert.Equal (count > 0 ? 0 : (int?)null, list.SelectedItem);
             if (count > 0) list.SetFocus ();
             foreach (KeyCode key in new [] { KeyCode.CursorDown, KeyCode.CursorUp, KeyCode.PageDown, KeyCode.PageUp })
             {
@@ -352,6 +354,57 @@ public sealed class ListNavigationTests
     }
 
     [Fact]
+    public void CliMissingManifestFallsBackToSelectedRowDetails ()
+    {
+        NavigationBackend backend = new ()
+        {
+            Show = (id, _) =>
+            {
+                ProcessRunner.RunResult missing = new (unchecked ((int)0x8A150014),
+                    "No package found matching input criteria.", false, false, false);
+                string output = CliBackend.VerifiedQueryOutput (missing, "winget", CliBackend.ShowArgs (id));
+                return Task.FromResult (CliBackend.ParseShow (id, output));
+            }
+        };
+        using UiSession ui = new (AppMode.Installed, 2, backend);
+        ui.State.ClearCachedDetails ();
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("Example.000", ui.State.CurrentDetail?.Id);
+        Assert.Equal ("Package 000", ui.State.CurrentDetail?.Name);
+        Assert.Equal ("1", ui.State.CurrentDetail?.InstalledVersion);
+        Assert.True (ui.State.CurrentDetail?.IsDescriptionDegraded);
+        Assert.False (ui.State.StatusIsError);
+        ui.Press (KeyCode.CursorDown);
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("Example.001", ui.State.CurrentDetail?.Id);
+        ui.AssertSelection ();
+    }
+
+    [Fact]
+    public void DetailQueryFailureShowsRowContextWithoutLeavingLoadingOrCachingTheError ()
+    {
+        NavigationBackend backend = new ()
+        {
+            Show = (_, _) => Task.FromException<PackageDetail?> (new InvalidOperationException ("Source unavailable"))
+        };
+        using UiSession ui = new (AppMode.Installed, 1, backend);
+        ui.State.ClearCachedDetails ();
+        ui.State.CurrentDetail = null;
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("Example.000", ui.State.CurrentDetail?.Id);
+        Assert.True (ui.State.StatusIsError);
+        Assert.Contains ("Source unavailable", ui.State.StatusMessage);
+        Assert.False (ui.State.TryGetCachedDetail (ui.State.Packages [0], out _));
+        Assert.DoesNotContain ("loading", ui.Detail.Title, StringComparison.OrdinalIgnoreCase);
+        backend.Show = (id, _) => Task.FromResult<PackageDetail?> (new () { Id = id, Name = "Recovered details" });
+        ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => ui.State.CurrentDetail?.Name == "Recovered details");
+        Assert.True (ui.State.TryGetCachedDetail (ui.State.Packages [0], out _));
+    }
+
+    [Fact]
     public void LateDetailCannotReplaceANewerSelection ()
     {
         TaskCompletionSource<PackageDetail?> late = new (TaskCreationOptions.RunContinuationsAsynchronously);
@@ -382,13 +435,16 @@ public sealed class ListNavigationTests
         public DetailPanel Detail { get; }
         private readonly SessionToken _session;
 
-        public UiSession (AppMode mode, int count, IBackend? backend = null)
+        public UiSession (AppMode mode, int count, IBackend? backend = null, WorkflowStore? workflowStore = null,
+            Func<System.Diagnostics.ProcessStartInfo, IDisposable?>? urlLauncher = null)
         {
             Theme.Register ();
             // Begin and Keyboard use the same event/command pipeline as a running app.
             // A driverless application keeps this test independent of the host's terminal.
             Application = Terminal.Gui.App.Application.Create ();
-            Window = new (backend ?? new MockBackend ()) { Width = 140, Height = 32 };
+            Application.GetType ().GetProperty ("Coordinator", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue (Application, new DriverlessLoop (this));
+            Window = new (backend ?? new MockBackend (), workflowStore: workflowStore, urlLauncher: urlLauncher) { Width = 140, Height = 32 };
             Field ("_initialLoadDone").SetValue (Window, true);
             State = Get<AppState> ("_state");
             Table = Get<TableView> ("_packageTable");
@@ -411,7 +467,7 @@ public sealed class ListNavigationTests
                 Source = i % 2 == 0 ? "winget" : "msstore"
             }).ToList ();
             foreach (Package p in State.Packages)
-                State.CacheDetail (p.Id, new () { Id = p.Id, Name = p.Name, Version = p.Version });
+                State.CacheDetail (p.Id, new () { Id = p.Id, Name = p.Name, Version = p.Version, Source = p.Source });
             State.ApplyFilter ();
             Invoke ("RefreshTable");
         }
@@ -491,6 +547,14 @@ public sealed class ListNavigationTests
         private void SetUiThread () => Application.GetType ().GetProperty ("MainThreadId")!
             .SetValue (Application, Environment.CurrentManagedThreadId);
 
+        // Modal Run uses the same dispatch/timer pump as the surrounding driverless session.
+        private sealed class DriverlessLoop (UiSession session) : IMainLoopCoordinator
+        {
+            public Task StartInputTaskAsync (IApplication? app) => Task.CompletedTask;
+            public void Stop () { }
+            public void RunIteration () => session.Pump ();
+        }
+
         public T Get<T> (string name) => (T)Field (name).GetValue (Window)!;
         private static FieldInfo Field (string name) => typeof (App).GetField (name, BindingFlags.Instance | BindingFlags.NonPublic)!;
         public void Invoke (string name, params object? [] args) => typeof (App)
@@ -524,14 +588,19 @@ public sealed class ListNavigationTests
         public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct) => Inventory (source, ct);
         public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => Inventory (source, ct);
         public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Inventory (source, ct);
-        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct) => Show?.Invoke (id, ct) ?? _mock.ShowAsync (id, ct);
+        public List<string?> DetailSources { get; } = [];
+        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
+        {
+            DetailSources.Add (source);
+            return Show?.Invoke (id, ct) ?? _mock.ShowAsync (id, ct, source);
+        }
         public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => _mock.ListSourcesAsync (ct);
         public Task<IReadOnlyDictionary<string, PinState>> ListPinsAsync (CancellationToken ct) => _mock.ListPinsAsync (ct);
         public Task<string> DescribeAsync (CancellationToken ct) => _mock.DescribeAsync (ct);
         public bool CanVerify => false;
         public bool CanRepair => false;
-        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct) => throw new NotSupportedException ();
-        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct) => throw new NotSupportedException ();
+        public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
+        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
         public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
         public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => throw new NotSupportedException ();
         public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => throw new NotSupportedException ();

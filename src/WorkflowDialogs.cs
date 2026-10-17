@@ -12,20 +12,41 @@ public sealed class BatchPlanDialog : Runnable<bool>
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
 
+        KeyDown += (_, key) =>
+        {
+            if (key.KeyCode != KeyCode.Esc) return;
+            Result = false; RequestStop (); key.Handled = true;
+        };
+
         Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{plan.Ready} ready · {plan.Skipped} skipped  —  review each package before continuing" };
         ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (plan.Items.Select (x =>
-            $"{(x.CanRun ? "READY" : "SKIP ")}  {x.Package.Name} [{x.Package.Id}]  —  {x.Reason}").ToList ()));
+            $"{(x.CanRun ? "READY" : "SKIP ")}  {x.Package.Name} [{x.Package.Id}] ({x.Package.Source})  —  {x.Reason}").ToList ()));
+        rows.SelectedItem = plan.Items.Count > 0 ? 0 : null;
+        Button details = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Details", Enabled = plan.Items.Count > 0 };
+        details.Accepting += (_, e) =>
+        {
+            if (App is not null && rows.SelectedItem is { } i && i >= 0 && i < plan.Items.Count)
+            {
+                BatchPlanItem item = plan.Items [i];
+                using RunDiagnosticsDialog detail = new ("Plan details",
+                    $"{item.Package.Name} [{item.Package.Id}]\nSource: {item.Package.Source}\n"
+                    + $"Current/catalog version: {item.Package.Version}\nAvailable version: {item.Package.AvailableVersion}\n\n"
+                    + $"{item.Reason}\n{item.Request?.Description}");
+                App.Run (detail);
+            }
+            e.Handled = true;
+        };
         Button run = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = $"_{plan.Action}", IsDefault = true, Enabled = plan.Ready > 0 };
         Button cancel = new () { X = Pos.Center () + 3, Y = Pos.AnchorEnd (1), Text = "Cancel" };
         run.Accepting += (_, e) => { Result = true; RequestStop (); e.Handled = true; };
         cancel.Accepting += (_, e) => { Result = false; RequestStop (); e.Handled = true; };
-        Add (summary, rows, run, cancel);
+        Add (summary, rows, details, run, cancel);
         rows.SetFocus ();
     }
 }
 
-public sealed class RunRecordDialog : Runnable
+public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
 {
     public RunRecordDialog (RunRecord record)
     {
@@ -36,14 +57,114 @@ public sealed class RunRecordDialog : Runnable
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
-        Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = record.Summary };
-        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        KeyDown += (_, key) =>
+        {
+            if (key.KeyCode != KeyCode.Esc) return;
+            Result = null; RequestStop (); key.Handled = true;
+        };
+        Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = $"{record.Summary} · {record.FinishedAtUtc.ToLocalTime ():g}" };
+        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (5), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (record.Items.Select (x =>
-            $"{x.Status,-9} {x.Name} [{x.Id}]  —  {x.Reason}").ToList ()));
+            $"{x.Status,-9} {x.Name} [{x.Id}] ({x.Source})  —  {x.Reason}").ToList ()));
+        rows.SelectedItem = record.Items.Count > 0 ? 0 : null;
+        Button diagnostics = new () { X = 1, Y = Pos.AnchorEnd (3), Text = "_Details", Enabled = record.Items.Count > 0 };
+        Button retry = new () { X = 14, Y = Pos.AnchorEnd (3), Text = "_Retry selected…" };
+        Button retryAll = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "Retry _failed…", Enabled = record.Items.Any (x => x.Status == "Failed" && x.CanRetry) };
+        Button close = new () { X = Pos.AnchorEnd (10), Y = Pos.AnchorEnd (1), Text = "_Close", IsDefault = true };
+        RunItem? Selected () => rows.SelectedItem is { } i && i >= 0 && i < record.Items.Count ? record.Items [i] : null;
+        void UpdateRetry () => retry.Enabled = Selected ()?.CanRetry == true;
+        UpdateRetry ();
+        rows.ValueChanged += (_, _) => UpdateRetry ();
+        void Details ()
+        {
+            if (Selected () is not { } item || App is null) return;
+            using RunDiagnosticsDialog detail = new (item);
+            App.Run (detail);
+        }
+        diagnostics.Accepting += (_, e) => { Details (); e.Handled = true; };
+        rows.Accepting += (_, e) => { Details (); e.Handled = true; };
+        retry.Accepting += (_, e) =>
+        {
+            if (Selected () is { CanRetry: true } item) { Result = new [] { item }; RequestStop (); }
+            e.Handled = true;
+        };
+        retryAll.Accepting += (_, e) =>
+        {
+            Result = record.Items.Where (x => x.Status == "Failed" && x.CanRetry).ToArray ();
+            RequestStop (); e.Handled = true;
+        };
+        close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
+        Add (summary, rows, diagnostics, retry, retryAll, close);
+        rows.SetFocus ();
+    }
+}
+
+public sealed class RunDiagnosticsDialog : Runnable
+{
+    public RunDiagnosticsDialog (RunItem item) : this ("Run diagnostics", item.DetailText ()) { }
+
+    public RunDiagnosticsDialog (string title, string content)
+    {
+        Title = $" {title} ";
+        BorderStyle = LineStyle.Rounded;
+        Width = Dim.Percent (85); Height = Dim.Percent (80);
+        X = Pos.Center (); Y = Pos.Center (); SchemeName = Theme.SurfaceSchemeName;
+        KeyDown += (_, key) =>
+        {
+            if (key.KeyCode != KeyCode.Esc) return;
+            RequestStop (); key.Handled = true;
+        };
+        Code text = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = Dim.Fill (2), Text = content };
+        text.KeyDown += (_, key) =>
+        {
+            int page = Math.Max (1, text.Viewport.Height - 1);
+            switch (key.KeyCode)
+            {
+                case KeyCode.CursorDown: text.ScrollVertical (1); break;
+                case KeyCode.CursorUp: text.ScrollVertical (-1); break;
+                case KeyCode.PageDown: text.ScrollVertical (page); break;
+                case KeyCode.PageUp: text.ScrollVertical (-page); break;
+                case KeyCode.Home: text.ScrollVertical (-text.Viewport.Y); break;
+                case KeyCode.End: text.ScrollVertical (text.GetContentSize ().Height); break;
+                case KeyCode.CursorLeft: text.ScrollHorizontal (-1); break;
+                case KeyCode.CursorRight: text.ScrollHorizontal (1); break;
+                default: return;
+            }
+            key.Handled = true;
+        };
         Button close = new () { X = Pos.Center (), Y = Pos.AnchorEnd (1), Text = "_Close", IsDefault = true };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
-        Add (summary, rows, close);
-        rows.SetFocus ();
+        Add (text, close); text.SetFocus ();
+    }
+}
+
+public sealed class PackageActionDialog : Runnable<string?>
+{
+    public PackageActionDialog (string context, IReadOnlyList<PackageAction> actions)
+    {
+        Title = " Actions "; BorderStyle = LineStyle.Rounded;
+        Width = Dim.Percent (65); Height = Math.Clamp (actions.Count + 7, 10, 23);
+        X = Pos.Center (); Y = Pos.Center (); SchemeName = Theme.SurfaceSchemeName;
+        KeyDown += (_, key) =>
+        {
+            if (key.KeyCode != KeyCode.Esc) return;
+            Result = null; RequestStop (); key.Handled = true;
+        };
+        Label label = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = context };
+        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        rows.SetSource (new ObservableCollection<string> (actions.Select (x => x.Label).ToList ()));
+        rows.SelectedItem = actions.Count > 0 ? 0 : null;
+        void Choose ()
+        {
+            if (rows.SelectedItem is not { } i || i < 0 || i >= actions.Count) return;
+            Result = actions [i].Id; RequestStop ();
+        }
+        rows.Accepting += (_, e) => { Choose (); e.Handled = true; };
+        Button choose = new () { X = Pos.Center () - 10, Y = Pos.AnchorEnd (1), Text = "_Choose", IsDefault = true };
+        Button cancel = new () { X = Pos.Center () + 3, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        choose.Accepting += (_, e) => { Choose (); e.Handled = true; };
+        cancel.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
+        Add (label, rows, choose, cancel); rows.SetFocus ();
     }
 }
 
@@ -115,9 +236,15 @@ public sealed class RunHistoryDialog : Runnable<int?>
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
+        KeyDown += (_, key) =>
+        {
+            if (key.KeyCode != KeyCode.Esc) return;
+            Result = null; RequestStop (); key.Handled = true;
+        };
         ListView rows = new PackageListView () { X = 1, Y = 1, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
         rows.SetSource (new ObservableCollection<string> (runs.Select (x =>
             $"{x.FinishedAtUtc.ToLocalTime ():g}  {StatusOwnership.TruncateScalarSafe (x.Action, 10),-10} {x.Summary}").ToList ()));
+        rows.SelectedItem = runs.Count > 0 ? 0 : null;
         Button open = new () { X = Pos.Center () - 7, Y = Pos.AnchorEnd (1), Text = "_Open", IsDefault = true };
         Button close = new () { X = Pos.Center () + 2, Y = Pos.AnchorEnd (1), Text = "Close" };
         open.Accepting += (_, e) => { Result = rows.SelectedItem; RequestStop (); e.Handled = true; };
@@ -131,7 +258,7 @@ public sealed record ScheduleChoice (string Action, string DailyAt, bool NotifyO
 
 public sealed class ScheduleDialog : Runnable<ScheduleChoice?>
 {
-    public ScheduleDialog (UpdateCheckSettings settings, UpdateCheckSnapshot? latest)
+    public ScheduleDialog (UpdateCheckSettings settings, UpdateCheckSnapshot? latest, bool canSchedule = true)
     {
         Title = " Scheduled update checks ";
         BorderStyle = LineStyle.Rounded;
@@ -140,24 +267,28 @@ public sealed class ScheduleDialog : Runnable<ScheduleChoice?>
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
-        Label state = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = settings.Enabled ? "Daily checks enabled" : "Daily checks disabled" };
+        Label state = new () { X = 1, Y = 0, Width = Dim.Fill (1), Text = !canSchedule
+            ? "Mock session: daily scheduling is unavailable. Use Check now."
+            : settings.Enabled ? "Daily checks enabled" : "Daily checks disabled" };
         Label last = new () { X = 1, Y = 1, Width = Dim.Fill (1), Text = latest is null
             ? "No check has run yet."
             : latest.Status == "Succeeded"
                 ? $"Last check: {latest.CheckedAtUtc.ToLocalTime ():g} · {latest.Actionable} available · {latest.NewOrChanged} new or changed"
                 : $"Last check failed: {latest.Error}" };
         Label timeLabel = new () { X = 1, Y = 3, Text = "Daily time (HH:mm):" };
-        TextField time = new () { X = 21, Y = 3, Width = 8, Text = settings.DailyAt };
+        TextField time = new () { X = 21, Y = 3, Width = 8, Text = settings.DailyAt, Enabled = canSchedule };
         Label notifyLabel = new () { X = 1, Y = 5, Text = "Notify on changes or failures:" };
-        OptionSelector notify = new () { X = 32, Y = 5, Width = 20, Labels = ["Yes", "No"] };
+        OptionSelector notify = new () { X = 32, Y = 5, Width = 20, Labels = ["Yes", "No"], Enabled = canSchedule };
         notify.Value = settings.NotifyOnChange ? 0 : 1;
         Label error = new () { X = 1, Y = 7, Width = Dim.Fill (1), Text = string.Empty, SchemeName = Theme.DangerSchemeName };
-        Button save = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Enable / save", IsDefault = true };
-        Button disable = new () { X = 21, Y = Pos.AnchorEnd (1), Text = "_Disable" };
+        Button save = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Enable / save", IsDefault = canSchedule, Enabled = canSchedule };
+        Button disable = new () { X = 21, Y = Pos.AnchorEnd (1), Text = "_Disable", Enabled = canSchedule };
         Button check = new () { X = 35, Y = Pos.AnchorEnd (1), Text = "Check _now" };
         Button close = new () { X = 54, Y = Pos.AnchorEnd (1), Text = "Close" };
         save.Accepting += (_, e) =>
         {
+            e.Handled = true;
+            if (!canSchedule) return;
             if (!UpdateChecks.TryParseDailyTime (time.Text ?? string.Empty, out TimeOnly ignoredTime))
             {
                 error.Text = "Enter a 24-hour time, for example 09:00.";
@@ -167,12 +298,16 @@ public sealed class ScheduleDialog : Runnable<ScheduleChoice?>
                 Result = new ("Save", time.Text!, notify.Value == 0);
                 RequestStop ();
             }
-            e.Handled = true;
         };
-        disable.Accepting += (_, e) => { Result = new ("Disable", settings.DailyAt, settings.NotifyOnChange); RequestStop (); e.Handled = true; };
+        disable.Accepting += (_, e) =>
+        {
+            e.Handled = true;
+            if (!canSchedule) return;
+            Result = new ("Disable", settings.DailyAt, settings.NotifyOnChange); RequestStop ();
+        };
         check.Accepting += (_, e) => { Result = new ("Check", settings.DailyAt, settings.NotifyOnChange); RequestStop (); e.Handled = true; };
         close.Accepting += (_, e) => { RequestStop (); e.Handled = true; };
         Add (state, last, timeLabel, time, notifyLabel, notify, error, save, disable, check, close);
-        time.SetFocus ();
+        (canSchedule ? (View)time : check).SetFocus ();
     }
 }

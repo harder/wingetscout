@@ -34,10 +34,34 @@ reviews selected upgrades before running them. The review shows items
 that cannot be run and why. An install or upgrade never starts merely
 because a row was marked.
 
+List headings show how many rows are visible out of the results loaded for the
+current source/search. Selection counts include hidden rows and packages retained
+from previous searches. `a` changes only visible rows; `B` and `U` review the entire
+selection, including hidden packages.
+Plans refresh catalog or upgrade inventory before review. Removed sources,
+missing packages, and ambiguous matches are skipped individually. Failed inventory
+or catalog lookups cannot authorize an operation.
+
+Press `m` or `Shift+F10`, or right-click a package row, to open its contextual
+actions. The menu reflects the current tab, backend capabilities, and known pin
+state. Package-changing actions still open their usual confirmation or review.
+
 `o` opens the package homepage and `c` opens release notes when the
 selected package provides those links. `e` exports the visible rows to
 CSV. `t` chooses a theme; `L` opens recent run results. `Esc` cancels
 the current input or operation as appropriate, and `q` quits.
+
+In recent runs, open a run and choose **Details** (or press Enter on a package)
+to inspect timing, source, versions, install options, backend, CLI exit codes,
+and diagnostic output (up to 16,384 characters per package). Use arrow keys,
+Page Up/Down, Home/End, or scrollbars to navigate the details. **Retry selected**
+also handles cancelled packages; **Retry failed** includes only failed entries.
+Retries recheck the exact package/source, installed state, available version,
+and pins as applicable, then show a review with ready and skipped entries.
+**Details** in the review shows the full request, including advanced options.
+Nothing runs until you approve that review. Original results stay in history.
+Pin changes and older entries without a recorded request have no retry action.
+An explicit version is skipped if the backend cannot confirm its availability.
 
 ## Saved sets and update checks
 
@@ -52,6 +76,11 @@ Scout stores sets, recent runs, check results, and schedule settings in
 `%LOCALAPPDATA%\WinGetScout`. Keep the installed or extracted executable
 at the same path if you use scheduled checks, because the task records
 that path.
+
+Mock sessions use `%LOCALAPPDATA%\WinGetScout\Mock` for their local data.
+**Check now** remains available there, but enabling, changing, and removing a
+daily task is disabled. The scheduled `--check-updates` command rejects explicit
+mock mode before reading or writing real-session settings or check results.
 
 ## Which backend is running?
 

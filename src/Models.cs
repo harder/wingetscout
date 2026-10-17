@@ -316,6 +316,9 @@ public sealed class OpResult
     public required Operation Operation { get; init; }
     public bool Success { get; init; }
     public string Message { get; init; } = string.Empty;
+    public string? Diagnostics { get; init; }
+    public string? Backend { get; init; }
+    public int? ExitCode { get; init; }
 }
 
 /// <summary>

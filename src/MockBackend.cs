@@ -69,11 +69,12 @@ public sealed class MockBackend : IBackend
         return Task.FromResult<IReadOnlyList<string>> (["winget", "msstore"]);
     }
 
-    public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct)
+    public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
         PackageTemplate? template = InstalledTemplates.Concat (SearchTemplates)
-                                                     .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase));
+                                                     .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+                                                         && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
 
         if (template is null)
         {
@@ -106,11 +107,12 @@ public sealed class MockBackend : IBackend
         return Task.FromResult<PackageDetail?> (detail);
     }
 
-    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct)
+    public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
         PackageTemplate? p = SearchTemplates.Concat (InstalledTemplates)
-                                            .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase));
+                                            .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+                                                && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
         string baseV = p?.AvailableVersion ?? p?.Version ?? "1.0.0";
 
         // A small, distinct, newest-first list so the version picker is exercisable on any host.
@@ -121,11 +123,13 @@ public sealed class MockBackend : IBackend
         return Task.FromResult (versions);
     }
 
-    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct)
+    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
         PackageTemplate? p = SearchTemplates.Concat (InstalledTemplates)
-                                            .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase));
+                                            .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+                                                && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
+        if (p is null) return Task.FromResult<InstallerPreview?> (null);
 
         InstallerPreview preview = new ()
         {

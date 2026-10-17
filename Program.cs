@@ -2,6 +2,12 @@ using WinGetScout;
 
 if (args.Length > 0 && args [0] == "--check-updates")
 {
+    if (args.Any (a => a is "--mock" or "-m" or "--smoke"))
+    {
+        Console.Error.WriteLine ("Scheduled update checks are unavailable in mock mode.");
+        Environment.ExitCode = 1;
+        return;
+    }
     WorkflowStore store = new ();
     bool notifyOnChange = false;
     try { notifyOnChange = store.Schedule ().NotifyOnChange; }
@@ -156,11 +162,11 @@ if (args.Length > 0 && args [0] == "--comsmoke")
         IReadOnlyList<Package> matches = await probe.SearchAsync ("Microsoft.PowerToys", "winget", ct);
         Package match = matches.FirstOrDefault (p => p.Id.Equals ("Microsoft.PowerToys", StringComparison.OrdinalIgnoreCase))
                         ?? throw new InvalidOperationException ("COM search did not return Microsoft.PowerToys.");
-        PackageDetail detail = await probe.ShowAsync (match.Id, ct)
+        PackageDetail detail = await probe.ShowAsync (match.Id, ct, match.Source)
                                ?? throw new InvalidOperationException ("COM details were unavailable.");
-        IReadOnlyList<string> versions = await probe.ListVersionsAsync (match.Id, ct);
+        IReadOnlyList<string> versions = await probe.ListVersionsAsync (match.Id, ct, match.Source);
         if (versions.Count == 0) throw new InvalidOperationException ("COM package versions were unavailable.");
-        InstallerPreview preview = await probe.GetInstallerPreviewAsync (match.Id, null, null, ct)
+        InstallerPreview preview = await probe.GetInstallerPreviewAsync (match.Id, null, null, ct, match.Source)
                                    ?? throw new InvalidOperationException ("COM installer preview was unavailable.");
         Console.WriteLine ($"search/details/versions/preview: {detail.Id}, {versions.Count} versions, {preview}");
         Console.WriteLine ("Read-only COM smoke passed.");
