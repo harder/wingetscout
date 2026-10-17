@@ -62,11 +62,8 @@ public static class RetryPlanning
                 ? await backend.SearchAsync (item.Id, item.Source, ct)
                 : request.Kind == OperationKind.Upgrade
                     ? upgrades : installed;
-            Package [] exact = matches.Where (p =>
-                p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)
-                && p.Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase)).Take (2).ToArray ();
-            Package? package = exact.Length == 1 ? exact [0] : null;
-            string? skip = exact.Length > 1
+            Package? package = BatchPlanning.ExactMatch (matches, item.Id, item.Source, out bool ambiguous);
+            string? skip = ambiguous
                 ? "Package ID and source are ambiguous: multiple exact matches were returned."
                 : package is null || package.IsTruncated ? "Exact package and source are no longer available." : null;
             if (skip is null && request.Kind == OperationKind.Install)
@@ -90,8 +87,9 @@ public static class RetryPlanning
             {
                 IReadOnlyList<Package> all = catalog ? await backend.SearchAsync (item.Id, null, ct)
                     : installed;
-                if (all.Count (p => p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)) != 1)
-                    skip = "Package ID is ambiguous across sources.";
+                Package [] targets = all.Where (p => p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)).Take (2).ToArray ();
+                if (targets.Length != 1 || !targets [0].Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase))
+                    skip = "Package ID is ambiguous across sources or its source has changed.";
             }
             string reason = request.Description;
             if (request.Kind == OperationKind.Upgrade && package is not null)

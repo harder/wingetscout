@@ -43,35 +43,17 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
 
     /// <summary>
     /// The configured source names from `winget source list`, e.g. ["winget", "msstore"].
-    /// Falls back to the two predefined sources if the command fails or parses empty.
+    /// Query failures propagate; callers must not treat fallback names as a verified snapshot.
     /// </summary>
     public async Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct)
     {
-        try
-        {
-            string output = await RunAsync (["source", "list"], ct);
-            IReadOnlyList<string> names = ParseSourceNames (output);
-
-            return names.Count > 0 ? names : ["winget", "msstore"];
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (BoundedOutputException)
-        {
-            // Partial source output must never be treated as a complete source snapshot.
-            throw;
-        }
-        catch
-        {
-            return ["winget", "msstore"];
-        }
+        string output = await RunAsync (["source", "list"], ct);
+        return ParseSourceNames (output);
     }
 
-    public async Task<PackageDetail?> ShowAsync (string id, CancellationToken ct)
+    public async Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
     {
-        string output = await RunAsync (ShowArgs (id), ct);
+        string output = await RunAsync (ShowArgs (id, source), ct);
 
         return ParseShow (id, output);
     }
@@ -105,7 +87,7 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
     public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
         => Task.FromResult<IReadOnlyList<string>> ([]);
 
-    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct)
+    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
         => Task.FromResult<InstallerPreview?> (null);
 
     // No CLI equivalent to CheckInstalledStatus — null signals "verify unavailable on this backend".
@@ -274,8 +256,12 @@ public sealed partial class CliBackend : IBackend, IInstalledVersionLookup
         }
     }
 
-    internal static string [] ShowArgs (string id) =>
-        ["show", "--id", id, "--exact", "--accept-source-agreements"];
+    internal static string [] ShowArgs (string id, string? source = null)
+    {
+        List<string> args = ["show", "--id", id, "--exact", "--accept-source-agreements"];
+        AppendSource (args, source);
+        return [.. args];
+    }
 
     internal static string [] InstalledByIdArgs (string id) =>
         ["list", "--id", id, "--exact", "--accept-source-agreements", "--disable-interactivity"];

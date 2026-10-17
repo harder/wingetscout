@@ -325,12 +325,12 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         !string.IsNullOrWhiteSpace (available)
         && !string.Equals (installed, available, StringComparison.OrdinalIgnoreCase);
 
-    public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct)
-        => WithPackageManagerAsync (ct, (pm, token) => ShowCoreAsync (pm, id, token));
+    public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
+        => WithPackageManagerAsync (ct, (pm, token) => ShowCoreAsync (pm, id, source, token));
 
-    private static async Task<PackageDetail?> ShowCoreAsync (PackageManager pm, string id, CancellationToken ct)
+    private static async Task<PackageDetail?> ShowCoreAsync (PackageManager pm, string id, string? source, CancellationToken ct)
     {
-        CatalogPackage? pkg = await FindByIdAsync (pm, id, null, installedContext: false, ct);
+        CatalogPackage? pkg = await FindByIdAsync (pm, id, source, installedContext: false, ct);
 
         if (pkg is null)
         {
@@ -499,17 +499,18 @@ public sealed class ComBackend : IBackend, IInstalledVersionLookup
         return versions;
     }
 
-    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct)
-        => WithPackageManagerAsync (ct, (pm, token) => GetInstallerPreviewCoreAsync (pm, id, version, settings, token));
+    public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
+        => WithPackageManagerAsync (ct, (pm, token) => GetInstallerPreviewCoreAsync (pm, id, version, settings, source, token));
 
     private static async Task<InstallerPreview?> GetInstallerPreviewCoreAsync (
         PackageManager pm,
         string id,
         string? version,
         InstallSettings? settings,
+        string? source,
         CancellationToken ct)
     {
-        CatalogPackage? pkg = await FindByIdAsync (pm, id, null, installedContext: false, ct);
+        CatalogPackage? pkg = await FindByIdAsync (pm, id, source, installedContext: false, ct);
 
         if (pkg is null)
         {

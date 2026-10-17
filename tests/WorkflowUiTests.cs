@@ -106,6 +106,26 @@ public sealed class WorkflowUiTests
         Assert.Equal (0, ui.Get<StatusBar> ("_statusBar").HiddenSelectionCount);
     }
 
+    [Fact]
+    public void SelectingAnotherSourceClearsStaleDetailsBeforeTheNewRequestCompletes ()
+    {
+        TaskCompletionSource<PackageDetail?> detail = new (TaskCreationOptions.RunContinuationsAsynchronously);
+        ListNavigationTests.NavigationBackend backend = new () { Show = (_, _) => detail.Task };
+        using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend);
+        Package package = ui.State.Packages [0];
+        ui.State.CacheDetail (package.Id, new () { Id = package.Id, Name = package.Name, Source = "winget", Homepage = "https://example.invalid/old" });
+        ui.Invoke ("OnSelectedRowChanged");
+        Assert.NotNull (ui.State.CurrentDetail);
+        ui.State.Packages = [new () { Id = package.Id, Name = package.Name, Source = "msstore" }];
+        ui.State.ApplyFilter (); ui.Invoke ("RefreshTable"); ui.Invoke ("OnSelectedRowChanged");
+        Assert.Null (ui.State.CurrentDetail);
+        detail.SetResult (new () { Id = package.Id, Name = package.Name, Source = "msstore", Homepage = "https://example.invalid/new" });
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Assert.Equal ("msstore", ui.State.CurrentDetail?.Source);
+        Assert.Equal ("https://example.invalid/new", ui.State.CurrentDetail?.Homepage);
+        Assert.Equal ("msstore", Assert.Single (backend.DetailSources));
+    }
+
     [Theory]
     [InlineData ("winget", true)]
     [InlineData ("msstore", false)]
@@ -122,8 +142,8 @@ public sealed class WorkflowUiTests
         });
         ui.State.Packages = [new () { Id = package.Id, Name = package.Name, Source = source }];
         ui.State.ApplyFilter (); ui.Invoke ("RefreshTable"); ui.Invoke ("OnSelectedRowChanged");
-        Assert.Equal (package.Id, ui.State.CurrentDetail?.Id);
-        Assert.Equal ("winget", ui.State.CurrentDetail?.Source);
+        if (expected) Assert.Equal ("winget", ui.State.CurrentDetail?.Source);
+        else Assert.Null (ui.State.CurrentDetail);
         bool sawMenu = false;
         ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
         {
@@ -152,8 +172,8 @@ public sealed class WorkflowUiTests
         using ListNavigationTests.UiSession ui = new (AppMode.Installed, 2, backend,
             urlLauncher: psi => { opened.Add (psi.FileName); return null; });
         Package [] packages = ui.State.Packages.ToArray ();
-        ui.State.CacheDetail (packages [0].Id, new () { Id = packages [0].Id, Name = "Original", Homepage = "https://example.invalid/other/home", ReleaseNotesUrl = "https://example.invalid/other/releases" });
-        ui.State.CacheDetail (packages [1].Id, new () { Id = packages [1].Id, Name = "Selected", Homepage = "https://example.invalid/selected/home", ReleaseNotesUrl = "https://example.invalid/selected/releases" });
+        ui.State.CacheDetail (packages [0].Id, new () { Id = packages [0].Id, Name = "Original", Source = packages [0].Source, Homepage = "https://example.invalid/other/home", ReleaseNotesUrl = "https://example.invalid/other/releases" });
+        ui.State.CacheDetail (packages [1].Id, new () { Id = packages [1].Id, Name = "Selected", Source = packages [1].Source, Homepage = "https://example.invalid/selected/home", ReleaseNotesUrl = "https://example.invalid/selected/releases" });
         ui.Invoke ("OnSelectedRowChanged");
         ui.Press (new Key ('r'));
         ui.PumpUntil (() => backend.Sources.Count == 1);
@@ -216,6 +236,67 @@ public sealed class WorkflowUiTests
         }
     }
 
+    [Theory]
+    [InlineData (false)]
+    [InlineData (true)]
+    public void WrongSourceOrIdDetailsBecomeAnUncachedStub (bool wrongSource)
+    {
+        ListNavigationTests.NavigationBackend backend = new ()
+        {
+            Show = (id, _) => Task.FromResult<PackageDetail?> (new ()
+            {
+                Id = wrongSource ? id : "Other.Tool", Name = "Wrong package", Source = wrongSource ? "msstore" : "winget",
+                Homepage = "https://example.invalid/wrong"
+            })
+        };
+        using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend);
+        ui.State.ClearCachedDetails (); ui.Invoke ("OnSelectedRowChanged");
+        ui.PumpUntil (() => !ui.State.DetailLoading);
+        Package selected = ui.State.Packages [0];
+        Assert.Equal (selected.Id, ui.State.CurrentDetail?.Id);
+        Assert.Equal (selected.Source, ui.State.CurrentDetail?.Source);
+        Assert.Null (ui.State.CurrentDetail?.Homepage);
+        Assert.False (ui.State.TryGetCachedDetail (selected, out _));
+        Assert.Contains ("did not match", ui.State.StatusMessage);
+    }
+
+    [Theory]
+    [InlineData (true)]
+    [InlineData (false)]
+    public void SingleRunRecordsOnlyItsOwnCancellationAsSkipped (bool matchingToken)
+    {
+        string root = Path.Combine (Path.GetTempPath (), "scout-cancel-identity-" + Guid.NewGuid ().ToString ("N"));
+        try
+        {
+            WorkflowStore store = new (root);
+            TaskCompletionSource<OpResult> completion = new (TaskCreationOptions.RunContinuationsAsynchronously);
+            CancellationToken operationToken = default;
+            RecordingBackend backend = new () { InstallResult = ct => { operationToken = ct; return completion.Task; } };
+            using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend, store);
+            ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
+            {
+                if (ui.Application.TopRunnableView == ui.Window) return true;
+                Dialog confirmation = Assert.IsType<Dialog> (ui.Application.TopRunnable);
+                Button accept = Assert.Single (confirmation.Buttons!, b => b.Text.Contains ("Yes"));
+                accept.SetFocus (); ui.Press (KeyCode.Enter);
+                return false;
+            });
+            ui.Invoke ("ConfirmAndInstall", ui.State.Packages [0], null!, null!);
+            ui.PumpUntil (() => backend.Mutations == 1 || !ui.State.Loading);
+            Assert.True (backend.Mutations == 1, $"Operation did not start: {ui.State.StatusMessage}");
+            ui.Press (KeyCode.Esc);
+            Assert.True (operationToken.IsCancellationRequested);
+            using CancellationTokenSource unrelated = new ();
+            unrelated.Cancel ();
+            completion.SetException (new OperationCanceledException ("Independent failure", matchingToken ? operationToken : unrelated.Token));
+            ui.PumpUntil (() => store.Runs ().Count == 1);
+            RunItem item = Assert.Single (store.Runs () [0].Items);
+            Assert.Equal (matchingToken ? "Skipped" : "Failed", item.Status);
+            if (!matchingToken) Assert.Contains ("Independent failure", item.Diagnostics);
+        }
+        finally { if (Directory.Exists (root)) Directory.Delete (root, true); }
+    }
+
     [Fact]
     public void ContextInstallActionStillRequiresConfirmation ()
     {
@@ -243,6 +324,7 @@ public sealed class WorkflowUiTests
         ui.Press (new Key ('m'));
         ui.PumpUntil (() => sawConfirmation && !ui.State.Loading);
         Assert.Equal (0, backend.Mutations);
+        Assert.Equal ("winget", Assert.Single (backend.PreviewSources));
     }
 
     [Fact]
@@ -322,17 +404,28 @@ public sealed class WorkflowUiTests
         finally { app.End (session); }
     }
 
-    [Fact]
-    public void ApprovedRetryExecutesOnceWithOriginalOptionsAndCreatesANewRun ()
+    [Theory]
+    [InlineData (OperationKind.Install)]
+    [InlineData (OperationKind.Upgrade)]
+    [InlineData (OperationKind.Download)]
+    [InlineData (OperationKind.Uninstall)]
+    [InlineData (OperationKind.Repair)]
+    public void ApprovedRetryExecutesOnceWithOriginalOptionsAndCreatesANewRun (OperationKind kind)
     {
         string root = Path.Combine (Path.GetTempPath (), "scout-approved-retry-" + Guid.NewGuid ().ToString ("N"));
         try
         {
             WorkflowStore store = new (root);
             InstallSettings options = new () { Scope = InstallScopePref.User, CustomArgs = "/feature" };
-            RunItem failed = Failed (version: "2", settings: options);
-            store.SaveRun (new (DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Install", [failed]));
-            RecordingBackend backend = new ();
+            bool versioned = kind is OperationKind.Install or OperationKind.Download;
+            RunItem failed = Failed (kind, version: versioned ? "2" : null, settings: kind == OperationKind.Install ? options : null)
+                with { Backend = "Recorded backend" };
+            store.SaveRun (new (DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, kind.ToString (), [failed]));
+            RecordingBackend backend = new ()
+            {
+                CanRepair = true,
+                Installed = kind is OperationKind.Uninstall or OperationKind.Repair ? [Tool ()] : []
+            };
             using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend, store);
             bool reviewed = false, sawResults = false;
             ui.State.BatchSelected.Add ("winget\u001fUnrelated.Package");
@@ -357,14 +450,15 @@ public sealed class WorkflowUiTests
             ui.Invoke ("AskRetry", new List<RunItem> { failed });
             ui.PumpUntil (() => sawResults && !ui.State.Loading);
             Assert.True (reviewed);
-            Assert.Equal ("2", backend.LastVersion);
-            Assert.Equal ("winget", backend.LastSource);
-            Assert.Same (options, backend.LastSettings);
+            Assert.Equal (kind, backend.LastKind);
+            Assert.Equal (versioned ? "2" : null, backend.LastVersion);
+            Assert.Equal (kind is OperationKind.Install or OperationKind.Upgrade ? "winget" : null, backend.LastSource);
+            Assert.Same (kind == OperationKind.Install ? options : null, backend.LastSettings);
             IReadOnlyList<RunRecord> runs = store.Runs ();
             Assert.Equal (2, runs.Count);
             Assert.Equal ("Retry", runs [0].Action);
             Assert.Equal ("Succeeded", Assert.Single (runs [0].Items).Status);
-            Assert.Equal ("2", runs [0].Items [0].TargetVersion);
+            Assert.Equal (kind is OperationKind.Uninstall or OperationKind.Repair ? "1" : "2", runs [0].Items [0].TargetVersion);
             Assert.Equal ("Failed", runs [1].Items [0].Status);
             Assert.NotNull (runs [0].Items [0].StartedAtUtc);
             Assert.Contains ("winget\u001fUnrelated.Package", ui.State.BatchSelected);

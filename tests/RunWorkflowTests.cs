@@ -288,6 +288,81 @@ public sealed class RunWorkflowTests
     }
 
     [Fact]
+    public async Task InstallReviewRefreshesCatalogAndSkipsRemovedMissingAndDuplicateSelections ()
+    {
+        Package other = new () { Id = "Other.Tool", Name = "Other", Source = "winget", Version = "3" };
+        Package missing = new () { Id = "Gone.Tool", Name = "Gone", Source = "winget", Version = "1" };
+        RecordingBackend backend = new ()
+        {
+            Catalog = [Tool (), Tool (), other],
+            SearchFailure = source => source == "removed" ? new InvalidOperationException ("Source removed") : null
+        };
+        BatchPlan plan = await BatchPlanning.ReviewInstallsAsync (backend,
+            [Tool ("removed"), missing, Tool (), new () { Id = other.Id, Name = other.Name, Source = other.Source, Version = "1" }], CancellationToken.None);
+        Assert.Equal (4, plan.Items.Count);
+        Assert.Equal (1, plan.Ready);
+        Assert.Contains ("Source is unavailable", plan.Items [0].Reason);
+        Assert.Contains ("no longer available", plan.Items [1].Reason);
+        Assert.Contains ("ambiguous", plan.Items [2].Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal ("3", plan.Items [3].Package.Version);
+        Assert.DoesNotContain ("removed", backend.SearchSources);
+        Assert.Equal (0, backend.Mutations);
+
+        backend.SearchFailure = _ => new InvalidOperationException ("Catalog failed");
+        await Assert.ThrowsAsync<InvalidOperationException> (() => BatchPlanning.ReviewInstallsAsync (backend, [Tool ()], CancellationToken.None));
+        backend.SearchFailure = null;
+        backend.SourceFailure = new InvalidOperationException ("Sources failed");
+        await Assert.ThrowsAsync<InvalidOperationException> (() => BatchPlanning.ReviewInstallsAsync (backend, [Tool ()], CancellationToken.None));
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Theory]
+    [InlineData (null)]
+    [InlineData ("winget")]
+    [InlineData ("Custom Source")]
+    public void DetailCommandKeepsExactIdAndSelectedSource (string? source)
+    {
+        string [] args = CliBackend.ShowArgs ("Example.Tool", source);
+        Assert.Equal ("Example.Tool", args [Array.IndexOf (args, "--id") + 1]);
+        Assert.Contains ("--exact", args);
+        if (source is null) Assert.DoesNotContain ("--source", args);
+        else Assert.Equal (source, args [Array.IndexOf (args, "--source") + 1]);
+    }
+
+    [Fact]
+    public async Task MockDetailsAndPreviewsRejectAnUnrelatedSource ()
+    {
+        MockBackend backend = new ();
+        const string id = "Microsoft.VisualStudioCode";
+        Assert.Equal ("winget", (await backend.ShowAsync (id, CancellationToken.None, "winget"))?.Source);
+        Assert.Null (await backend.ShowAsync (id, CancellationToken.None, "missing"));
+        Assert.NotNull (await backend.GetInstallerPreviewAsync (id, null, null, CancellationToken.None, "winget"));
+        Assert.Null (await backend.GetInstallerPreviewAsync (id, null, null, CancellationToken.None, "missing"));
+    }
+
+    [Fact]
+    public async Task UpgradeReviewSkipsDuplicateMatchesAndKeepsUnrelatedPackages ()
+    {
+        Package other = new () { Id = "Other.Tool", Name = "Other", Source = "winget", Version = "1", AvailableVersion = "2" };
+        RecordingBackend backend = new () { Catalog = [Tool (), Tool (), other] };
+        HashSet<string> selected = new (StringComparer.OrdinalIgnoreCase) { BatchPlanning.Key (Tool ()), BatchPlanning.Key (other) };
+        BatchPlan plan = await BatchPlanning.ReviewUpgradesAsync (backend, selected, CancellationToken.None);
+        Assert.Equal (1, plan.Ready);
+        Assert.Contains ("ambiguous", plan.Items [0].Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True (plan.Items [1].CanRun);
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
+    public async Task DownloadRetryRejectsSourceChangeBetweenScopedAndUnscopedQueries ()
+    {
+        RecordingBackend backend = new () { SearchResults = source => [Tool (source ?? "other")] };
+        BatchPlan plan = await RetryPlanning.ReviewAsync (backend, [Failed (OperationKind.Download)], CancellationToken.None);
+        Assert.Equal (0, plan.Ready);
+        Assert.Equal (0, backend.Mutations);
+    }
+
+    [Fact]
     public async Task UpgradeReview_IncludesSelectionsHiddenBySourceAndExplainsMissingPackages ()
     {
         RecordingBackend backend = new () { Catalog = [Tool (), Tool ("msstore")] };
@@ -370,44 +445,57 @@ public sealed class RunWorkflowTests
         public IReadOnlyDictionary<string, PinState> Pins { get; set; } = new Dictionary<string, PinState> ();
         public Exception? PinFailure { get; set; }
         public Exception? InstalledFailure { get; set; }
+        public Exception? SourceFailure { get; set; }
+        public Func<CancellationToken, Task<OpResult>>? InstallResult { get; set; }
         public Func<string?, IReadOnlyList<string>>? Versions { get; set; }
         public Func<string?, Exception?>? SearchFailure { get; set; }
+        public Func<string?, IReadOnlyList<Package>>? SearchResults { get; set; }
+        public Func<string, CancellationToken, Task<IReadOnlyList<Package>>>? CatalogQuery { get; set; }
         public List<string?> SearchSources { get; } = [];
         public List<string?> VersionSources { get; } = [];
         public int Mutations { get; private set; }
         public string? LastSource { get; private set; }
         public string? LastVersion { get; private set; }
         public InstallSettings? LastSettings { get; private set; }
+        public OperationKind? LastKind { get; private set; }
         public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct)
         {
-            SearchSources.Add (source);
+            lock (SearchSources) SearchSources.Add (source);
+            if (CatalogQuery is not null) return CatalogQuery (query, ct);
             return SearchFailure?.Invoke (source) is { } failure ? Task.FromException<IReadOnlyList<Package>> (failure)
-                : Task.FromResult<IReadOnlyList<Package>> (Catalog.Where (p => source is null || p.Source == source).ToArray ());
+                : Task.FromResult (SearchResults?.Invoke (source) ?? Catalog.Where (p => source is null || p.Source == source).ToArray ());
         }
         public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => InstalledFailure is null
             ? Task.FromResult (Installed) : Task.FromException<IReadOnlyList<Package>> (InstalledFailure);
         public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Task.FromResult (Catalog);
-        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct) => Task.FromResult<PackageDetail?> (null);
-        public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => Task.FromResult (Sources);
+        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null) => Task.FromResult<PackageDetail?> (null);
+        public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => SourceFailure is null
+            ? Task.FromResult (Sources) : Task.FromException<IReadOnlyList<string>> (SourceFailure);
         public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
         {
             VersionSources.Add (source);
             return Task.FromResult (Versions?.Invoke (source) ?? (IReadOnlyList<string>)["1", "2"]);
         }
-        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct) => Task.FromResult<InstallerPreview?> (null);
-        public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null)
+        public List<string?> PreviewSources { get; } = [];
+        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
         {
-            Mutations++; LastSource = source; LastVersion = version; LastSettings = settings;
-            return Task.FromResult (CliBackend.CliResult (new () { Kind = OperationKind.Install, PackageId = id }, 0, "Installed"));
+            PreviewSources.Add (source);
+            return Task.FromResult<InstallerPreview?> (null);
         }
-        public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => InstallAsync (id, null, null, progress, ct, source);
-        public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => InstallAsync (id, null, null, progress, ct);
-        public Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct) => InstallAsync (id, version, null, progress, ct);
-        public Task<OpResult> RepairAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => InstallAsync (id, null, null, progress, ct);
-        public Task<OpResult> PinAsync (string id, CancellationToken ct) => InstallAsync (id, null, null, null, ct);
-        public Task<OpResult> UnpinAsync (string id, CancellationToken ct) => InstallAsync (id, null, null, null, ct);
+        private Task<OpResult> Execute (OperationKind kind, string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
+        {
+            Mutations++; LastKind = kind; LastSource = source; LastVersion = version; LastSettings = settings;
+            return InstallResult?.Invoke (ct) ?? Task.FromResult (CliBackend.CliResult (new () { Kind = kind, PackageId = id }, 0, "Completed"));
+        }
+        public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => Execute (OperationKind.Install, id, version, settings, ct, source);
+        public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => Execute (OperationKind.Upgrade, id, null, null, ct, source);
+        public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => Execute (OperationKind.Uninstall, id, null, null, ct);
+        public Task<OpResult> DownloadAsync (string id, string? version, IProgress<OpProgress>? progress, CancellationToken ct) => Execute (OperationKind.Download, id, version, null, ct);
+        public Task<OpResult> RepairAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => Execute (OperationKind.Repair, id, null, null, ct);
+        public Task<OpResult> PinAsync (string id, CancellationToken ct) => Execute (OperationKind.Pin, id, null, null, ct);
+        public Task<OpResult> UnpinAsync (string id, CancellationToken ct) => Execute (OperationKind.Unpin, id, null, null, ct);
         public bool CanVerify => false;
-        public bool CanRepair => false;
+        public bool CanRepair { get; set; }
         public Task<InstallVerification?> VerifyInstalledAsync (string id, CancellationToken ct) => Task.FromResult<InstallVerification?> (null);
         public Task<IReadOnlyDictionary<string, PinState>> ListPinsAsync (CancellationToken ct) => PinFailure is null ? Task.FromResult (Pins) : Task.FromException<IReadOnlyDictionary<string, PinState>> (PinFailure);
         public Task<string> DescribeAsync (CancellationToken ct) => Task.FromResult ("Test backend");

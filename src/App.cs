@@ -1326,6 +1326,7 @@ public sealed partial class App : Window
             return;
         }
 
+        _state.CurrentDetail = null;
         _detailPanel.SetDetail (null, true);
         CancellationToken ct = _detailCts.Token;
         int gen = _state.BumpDetailGeneration ();
@@ -1341,7 +1342,10 @@ public sealed partial class App : Window
                                                      // for the row the cursor settles on — not every row it passes over.
                                                      await Task.Delay (DetailLoadDebounceMs, ct);
 
-                                                     PackageDetail? detail = await _state.Backend.ShowAsync (p.Id, ct);
+                                                     PackageDetail? detail = await _state.Backend.ShowAsync (p.Id, ct, p.Source);
+                                                     if (detail is not null && (!detail.Id.Equals (p.Id, StringComparison.OrdinalIgnoreCase)
+                                                         || (!string.IsNullOrEmpty (detail.Source) && !detail.Source.Equals (p.Source, StringComparison.OrdinalIgnoreCase))))
+                                                         throw new InvalidOperationException ("Package details did not match the selected ID and source.");
                                                      string? installedVersion = null;
                                                      if (_state.Mode == AppMode.Search
                                                          && _state.Backend is IInstalledVersionLookup lookup
@@ -2047,7 +2051,7 @@ public sealed partial class App : Window
     {
         FetchThen (
             "Checking installer…",
-            ct => _state.Backend.GetInstallerPreviewAsync (p.Id, version, settings, ct),
+            ct => _state.Backend.GetInstallerPreviewAsync (p.Id, version, settings, ct, p.Source),
             preview =>
             {
                 string title = version is null ? $"Install {p.Name}?" : $"Install {p.Name} {version}?";
@@ -2741,7 +2745,7 @@ public sealed partial class App : Window
                                                  {
                                                      result = await op (progress, ct);
                                                  }
-                                                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                                                 catch (OperationCanceledException ex) when (ct.IsCancellationRequested && ex.CancellationToken == ct)
                                                  {
                                                      cancelled = true;
                                                  }

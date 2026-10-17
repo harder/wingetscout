@@ -8,7 +8,7 @@ public interface IBackend
     Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct);
     Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct);
     Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct);
-    Task<PackageDetail?> ShowAsync (string id, CancellationToken ct);
+    Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null);
 
     // The names of the configured package sources (catalogs), e.g. ["winget", "msstore"], used to
     // build the source-filter cycle dynamically instead of hard-coding the two predefined sources.
@@ -25,7 +25,7 @@ public interface IBackend
     // optionally at a specific version and with the selected install settings. Shown in the install
     // confirm dialog. Returns null when the backend can't resolve it (CLI), in which case the
     // confirm shows no preview line.
-    Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct);
+    Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null);
 
     // The install/upgrade/uninstall operations optionally report structured progress through
     // `progress`. Backends that can't (CLI) ignore it; the COM backend maps the WinGet COM

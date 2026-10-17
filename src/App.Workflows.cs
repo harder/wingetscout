@@ -128,19 +128,8 @@ public sealed partial class App
             return;
         }
         List<Package> selected = [.. _searchSelected.Values];
-        ReviewOperationPlan ($"Checking {selected.Count} selected packages…", "Install", async ct =>
-        {
-            IReadOnlyList<Package> installed = await _state.Backend.ListInstalledAsync (null, ct);
-            IReadOnlyList<string> sources = await _state.Backend.ListSourcesAsync (ct);
-            selected = await BatchPlanning.ResolveUnresolvedAsync (selected, async (item, token) =>
-            {
-                IReadOnlyList<Package> matches = await _state.Backend.SearchAsync (item.Id, item.Source, token);
-                return matches.FirstOrDefault (p =>
-                    p.Id.Equals (item.Id, StringComparison.OrdinalIgnoreCase)
-                    && p.Source.Equals (item.Source, StringComparison.OrdinalIgnoreCase));
-            }, ct);
-            return BatchPlanning.ForInstalls (selected, installed, sources);
-        });
+        ReviewOperationPlan ($"Checking {selected.Count} selected packages…", "Install",
+            ct => BatchPlanning.ReviewInstallsAsync (_state.Backend, selected, ct));
     }
 
     private void StartBatchPlan (ForegroundAdmission admission, BatchPlan plan)

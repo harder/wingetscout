@@ -467,7 +467,7 @@ public sealed class ListNavigationTests
                 Source = i % 2 == 0 ? "winget" : "msstore"
             }).ToList ();
             foreach (Package p in State.Packages)
-                State.CacheDetail (p.Id, new () { Id = p.Id, Name = p.Name, Version = p.Version });
+                State.CacheDetail (p.Id, new () { Id = p.Id, Name = p.Name, Version = p.Version, Source = p.Source });
             State.ApplyFilter ();
             Invoke ("RefreshTable");
         }
@@ -588,14 +588,19 @@ public sealed class ListNavigationTests
         public Task<IReadOnlyList<Package>> SearchAsync (string query, string? source, CancellationToken ct) => Inventory (source, ct);
         public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct) => Inventory (source, ct);
         public Task<IReadOnlyList<Package>> ListUpgradesAsync (string? source, CancellationToken ct) => Inventory (source, ct);
-        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct) => Show?.Invoke (id, ct) ?? _mock.ShowAsync (id, ct);
+        public List<string?> DetailSources { get; } = [];
+        public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
+        {
+            DetailSources.Add (source);
+            return Show?.Invoke (id, ct) ?? _mock.ShowAsync (id, ct, source);
+        }
         public Task<IReadOnlyList<string>> ListSourcesAsync (CancellationToken ct) => _mock.ListSourcesAsync (ct);
         public Task<IReadOnlyDictionary<string, PinState>> ListPinsAsync (CancellationToken ct) => _mock.ListPinsAsync (ct);
         public Task<string> DescribeAsync (CancellationToken ct) => _mock.DescribeAsync (ct);
         public bool CanVerify => false;
         public bool CanRepair => false;
         public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
-        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct) => throw new NotSupportedException ();
+        public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
         public Task<OpResult> InstallAsync (string id, string? version, InstallSettings? settings, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => throw new NotSupportedException ();
         public Task<OpResult> UninstallAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct) => throw new NotSupportedException ();
         public Task<OpResult> UpgradeAsync (string id, IProgress<OpProgress>? progress, CancellationToken ct, string? source = null) => throw new NotSupportedException ();

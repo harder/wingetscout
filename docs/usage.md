@@ -38,6 +38,9 @@ List headings show how many rows are visible out of the results loaded for the
 current source/search. Selection counts include hidden rows and packages retained
 from previous searches. `a` changes only visible rows; `B` and `U` review the entire
 selection, including hidden packages.
+Plans refresh catalog or upgrade inventory before review. Removed sources,
+missing packages, and ambiguous matches are skipped individually. Failed inventory
+or catalog lookups cannot authorize an operation.
 
 Press `m` or `Shift+F10`, or right-click a package row, to open its contextual
 actions. The menu reflects the current tab, backend capabilities, and known pin
