@@ -78,7 +78,7 @@
       prereleases; this is intentionally a moving target since the project's purpose is
       to evaluate parity against current Terminal.Gui behavior.
     -->
-    <PackageReference Include="Terminal.Gui" Version="2.5.1-develop.89" />
+    <PackageReference Include="Terminal.Gui" Version="2.5.1-develop.170" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100.0'">
