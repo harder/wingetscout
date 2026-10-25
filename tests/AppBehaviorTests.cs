@@ -67,8 +67,8 @@ public class AppBehaviorTests
 
         Assert.Equal (2, links.Length);
         Assert.All (links, link => Assert.False (link.CanFocus));
-        Assert.Contains (links, link => link.Text.Contains ("[https://example.invalid/home](https://example.invalid/home)", StringComparison.Ordinal));
-        Assert.Contains (links, link => link.Text.Contains ("[https://example.invalid/releases](https://example.invalid/releases)", StringComparison.Ordinal));
+        Assert.Contains (links, link => link.Text.Contains ("[Homepage ↗](<https://example.invalid/home>)", StringComparison.Ordinal));
+        Assert.Contains (links, link => link.Text.Contains ("[Release notes ↗](<https://example.invalid/releases>)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -406,7 +406,8 @@ public class AppBehaviorTests
         InvokePrivate (app, "ToggleBatchSelect", state.Packages [0]);
 
         Assert.Same (source, table.Table);
-        Assert.StartsWith ("[x] ", Assert.IsType<string> (source [0, 1]));
+        Assert.Equal ("◆", source [0, 0]);
+        Assert.Equal ("First", source [0, 1]);
         Assert.Contains ("1 selected", listFrame.Title);
         Assert.Same (detailRequest, GetPrivateField<CancellationTokenSource> (app, "_detailCts"));
         Assert.Equal (scrollPosition, detailPanel.Viewport.Y);
@@ -414,7 +415,8 @@ public class AppBehaviorTests
         InvokePrivate (app, "ToggleSelectAll");
 
         Assert.Same (source, table.Table);
-        Assert.StartsWith ("[x] ", Assert.IsType<string> (source [1, 1]));
+        Assert.Equal ("✓", source [1, 0]);
+        Assert.Equal ("Second", source [1, 1]);
         Assert.Contains ("2 selected", listFrame.Title);
         Assert.Equal (scrollPosition, detailPanel.Viewport.Y);
     }
@@ -640,7 +642,7 @@ public class AppBehaviorTests
     {
         using HelpDialog dialog = new ("COM · winget 1.29.380");
         LayoutView (dialog, new (140, 40));
-        Code content = Assert.Single (dialog.SubViews.OfType<Code> ());
+        Markdown content = Assert.Single (dialog.SubViews.OfType<Markdown> ());
 
         Assert.True (content.GetContentWidth () <= content.Viewport.Width,
             $"Help content width {content.GetContentWidth ()}, viewport width {content.Viewport.Width}");

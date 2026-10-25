@@ -56,11 +56,28 @@ public static class PackageActions
             {
                 if (!string.IsNullOrWhiteSpace (detail.Homepage)) actions.Add (new ("homepage", "Open homepage"));
                 if (!string.IsNullOrWhiteSpace (detail.ReleaseNotesUrl)) actions.Add (new ("changelog", "Open release notes"));
+                if (SupplementalLinks (detail).Count > 0) actions.Add (new ("links", "More links…"));
             }
         }
-        if (hasSelection) actions.Add (new ("clear-selection", $"Clear selection ({selectedCount} packages)"));
+        if (hasSelection) actions.Add (new ("clear-selection", $"Clear selection ({selectedCount} {(selectedCount == 1 ? "package" : "packages")})"));
         actions.Add (new ("history", "Recent runs…"));
         actions.Add (new ("diagnostics", "Backend and source diagnostics…"));
         return actions;
+    }
+
+    internal static IReadOnlyList<DocLink> SupplementalLinks (PackageDetail detail)
+    {
+        List<DocLink> links = [];
+        HashSet<string> seen = new (StringComparer.Ordinal);
+        void Add (string label, string? url)
+        {
+            if (Uri.TryCreate (url, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https" && seen.Add (url!))
+                links.Add (new (label, url!));
+        }
+        Add ("Support", detail.SupportUrl);
+        Add ("Privacy", detail.PrivacyUrl);
+        Add ("Purchase", detail.PurchaseUrl);
+        foreach (DocLink link in detail.Documentation ?? []) Add (link.Label, link.Url);
+        return links;
     }
 }

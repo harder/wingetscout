@@ -65,7 +65,8 @@ public sealed class DetailPanel : FrameView
         AddKv ("Id", detail.Id, ValueScheme.Info);
         AddKv ("Version", detail.Version);
 
-        if (!string.IsNullOrEmpty (detail.AvailableVersion))
+        if (!string.IsNullOrEmpty (detail.AvailableVersion)
+            && !string.Equals (detail.Version, detail.AvailableVersion, StringComparison.OrdinalIgnoreCase))
         {
             AddKv ("Available", detail.AvailableVersion, ValueScheme.Success);
         }
@@ -82,7 +83,8 @@ public sealed class DetailPanel : FrameView
             AddKv ("Publisher", detail.Publisher);
         }
 
-        if (!string.IsNullOrEmpty (detail.Author))
+        if (!string.IsNullOrEmpty (detail.Author)
+            && !string.Equals (detail.Author, detail.Publisher, StringComparison.OrdinalIgnoreCase))
         {
             AddKv ("Author", detail.Author);
         }
@@ -121,29 +123,24 @@ public sealed class DetailPanel : FrameView
             AddKv ("License", detail.License);
         }
 
-        if (!string.IsNullOrEmpty (detail.Copyright))
-        {
-            AddKv ("Copyright", detail.Copyright);
-        }
-
-        if (detail.Tags is { Count: > 0 } tags)
-        {
-            AddKv ("Tags", string.Join (", ", tags));
-        }
-
-        if (detail.ProductCodes is { Count: > 0 } productCodes)
-        {
-            AddKv ("Product code", string.Join (", ", productCodes));
-        }
-
-        if (detail.PackageFamilyNames is { Count: > 0 } familyNames)
-        {
-            AddKv ("Family name", string.Join (", ", familyNames));
-        }
-
         if (detail.PinState.IsPinned)
         {
             AddSingle ($"\U0001F4CC {detail.PinState.DisplayLabel ()}", Theme.Selection);
+        }
+
+        if (!string.IsNullOrEmpty (detail.Description))
+        {
+            AddBlank ();
+            AddSingle ("Description:", Theme.Accent, TextStyle.Bold);
+            if (detail.IsDescriptionDegraded) AddDegradedParagraph (detail.Description);
+            else AddParagraph (detail.Description);
+        }
+
+        if (!string.IsNullOrEmpty (detail.InstallationNotes))
+        {
+            AddBlank ();
+            AddSingle ("Installation notes:", Theme.Accent, TextStyle.Bold);
+            AddParagraph (detail.InstallationNotes);
         }
 
         if (!string.IsNullOrEmpty (detail.Homepage))
@@ -180,28 +177,11 @@ public sealed class DetailPanel : FrameView
             }
         }
 
-        if (!string.IsNullOrEmpty (detail.Description))
+        if (Mode == AppMode.Search && detail.Tags is { Count: > 0 } tags)
         {
             AddBlank ();
-            AddSingle ("Description:", Theme.Accent, TextStyle.Bold);
-
-            if (detail.IsDescriptionDegraded)
-            {
-                // Visually distinguish synthesized "no manifest available" notes from real
-                // package descriptions: leading ⚠ glyph in accent + body in secondary text.
-                AddDegradedParagraph (detail.Description);
-            }
-            else
-            {
-                AddParagraph (detail.Description);
-            }
-        }
-
-        if (!string.IsNullOrEmpty (detail.InstallationNotes))
-        {
-            AddBlank ();
-            AddSingle ("Installation notes:", Theme.Accent, TextStyle.Bold);
-            AddParagraph (detail.InstallationNotes);
+            string summary = string.Join (", ", tags.Take (3));
+            AddKv ("Tags", summary + (tags.Count > 3 ? $" (+{tags.Count - 3})" : string.Empty));
         }
 
         AddBlank ();
@@ -225,12 +205,12 @@ public sealed class DetailPanel : FrameView
                 }
                 else
                 {
-                    AddAction ("i", "Install (selected if marked)");
+                    AddAction ("i", "Install / review marked");
                     AddAction ("I", "Install specific version");
                 }
 
-                AddAction ("Spc", "Select for batch");
-                AddAction ("B", "Review selected");
+                AddAction ("Spc", "Toggle mark");
+                AddAction ("B", "Review marked installs");
 
                 break;
             case AppMode.Installed:
@@ -253,7 +233,7 @@ public sealed class DetailPanel : FrameView
 
                 break;
             case AppMode.Upgrades:
-                AddAction ("u", "Upgrade (selected if marked)");
+                AddAction ("u", "Upgrade / review marked");
                 AddAction ("x", "Uninstall");
                 if (CanVerify)
                 {
@@ -264,12 +244,14 @@ public sealed class DetailPanel : FrameView
                 {
                     AddAction ("R", "Repair install");
                 }
-                AddAction ("Spc", "Select");
-                AddAction ("a", "Toggle All");
-                AddAction ("U", "Upgrade selected");
+                AddAction ("Spc", "Toggle mark");
+                AddAction ("a", "Toggle visible marks");
+                AddAction ("U", "Review marked upgrades");
 
                 break;
         }
+
+        AddAction ("m", "All package actions");
 
         if (!string.IsNullOrEmpty (detail.Homepage))
         {
@@ -583,6 +565,20 @@ public sealed class DetailPanel : FrameView
                     continue;
                 }
 
+                // Identifiers and installation paths often have no spaces. Preserve the
+                // whole token across rows instead of silently clipping its tail at draw time.
+                while (tokenWidth > maxWidth)
+                {
+                    string part = UiText.TakeColumns (token, maxWidth);
+                    if (part.Length == 0) break;
+                    current.Add (new (part, span.Attr));
+                    wrapped.Add (current);
+                    current = [];
+                    currentWidth = 0;
+                    token = token [part.Length..];
+                    tokenWidth = token.GetColumns ();
+                }
+
                 current.Add (new (token, span.Attr));
                 currentWidth += tokenWidth;
             }
@@ -609,7 +605,7 @@ public sealed class DetailPanel : FrameView
 
             if (x + width > x0 + maxWidth)
             {
-                text = TrimToWidth (text, Math.Max (0, x0 + maxWidth - x));
+                text = UiText.TakeColumns (text, Math.Max (0, x0 + maxWidth - x));
                 width = text.GetColumns ();
             }
 
@@ -623,32 +619,6 @@ public sealed class DetailPanel : FrameView
             AddStr (text);
             x += width;
         }
-    }
-
-    private static string TrimToWidth (string text, int maxWidth)
-    {
-        if (maxWidth <= 0)
-        {
-            return string.Empty;
-        }
-
-        StringBuilder builder = new ();
-        int width = 0;
-
-        foreach (Rune rune in text.EnumerateRunes ())
-        {
-            int runeWidth = rune.GetColumns ();
-
-            if (width + runeWidth > maxWidth)
-            {
-                break;
-            }
-
-            builder.Append (rune.ToString ());
-            width += runeWidth;
-        }
-
-        return builder.ToString ();
     }
 
     private enum ValueScheme
@@ -677,8 +647,10 @@ public sealed class DetailPanel : FrameView
 
     private void AddMarkdownLinkRow (string label, string url)
     {
-        string visibleText = $"{label}: {url}";
+        string visibleText = $"{label} ↗";
         AddSingle (visibleText, Theme.Info, TextStyle.Underline);
+        string linkLabel = UiText.MarkdownLiteral (visibleText);
+        string destination = UiText.MarkdownDestination (url);
 
         Markdown markdown = new ()
         {
@@ -687,13 +659,15 @@ public sealed class DetailPanel : FrameView
             Y = 0,
             Width = 1,
             Height = 1,
-            Text = $"**{label}:** [{url}]({url})",
+            Text = $"[{linkLabel}](<{destination}>)",
             UseThemeBackground = false
         };
+        markdown.VerticalScrollBar.VisibilityMode = ScrollBarVisibilityMode.None;
+        markdown.HorizontalScrollBar.VisibilityMode = ScrollBarVisibilityMode.None;
         markdown.LinkClicked += (_, e) =>
                                 {
                                     e.Handled = true;
-                                    LinkActivated?.Invoke (this, e.Url);
+                                    LinkActivated?.Invoke (this, url);
                                 };
 
         Add (markdown);

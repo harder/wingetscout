@@ -17,7 +17,7 @@ public sealed class FullWorkflowUiTests
             help.Width = 80;
             help.Height = 20;
             ui.Application.LayoutAndDraw ();
-            Code content = Assert.Single (help.SubViews.OfType<Code> ());
+            Markdown content = Assert.Single (help.SubViews.OfType<Markdown> ());
             string text = content.Text;
             content.SetFocus ();
             ui.Press (KeyCode.PageDown);

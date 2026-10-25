@@ -1,0 +1,763 @@
+[
+  {
+    "Id": "7zip.7zip",
+    "Name": "7-Zip",
+    "Version": "26.05",
+    "AvailableVersion": "26.05",
+    "InstalledVersion": "26.04",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Igor Pavlov",
+    "Description": "A file archiver with a high compression ratio.",
+    "Homepage": "https://7-zip.org/download.html",
+    "License": "LGPL-2.1",
+    "ReleaseNotesUrl": "https://github.com/ip7z/7zip/releases/tag/26.05",
+    "SupportUrl": "https://7-zip.org/support.html",
+    "Tags": [
+      "7zfiles",
+      "archive",
+      "archiver",
+      "compress",
+      "compression",
+      "decompress",
+      "decompression",
+      "extract",
+      "extractor",
+      "rarfiles",
+      "targzfiles",
+      "unarchive",
+      "unarchiver",
+      "unzip",
+      "zip"
+    ],
+    "Documentation": [
+      {
+        "Label": "FAQ",
+        "Url": "https://7-zip.org/faq.html"
+      }
+    ],
+    "Author": "Igor Pavlov",
+    "Copyright": "Copyright \u00A9 1999-2026 Igor Pavlov.",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Audacity.Audacity",
+    "Name": "Audacity",
+    "Version": "4.0.1.262721353",
+    "AvailableVersion": "4.0.1.262721353",
+    "InstalledVersion": "3.7.8",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Audacity",
+    "Description": "Audacity is the world\u2019s most popular free software for recording and editing audio. So if you\u0027re producing music, a podcast, or just playing around with audio, Audacity is for you.  Audacity is for anyone who wants to get creative with sound. It\u2019s also the perfect tool for anyone who needs to quickly edit or export audio, for any reason.  Cross-platform:Runs on all major operating systems \u2013 Windows, MacOS and Linux. Import, export, convert:Audacity supports all major audio formats, allowing you to convert WAV to MP3, FLAC, Ogg and much more. Plugin support:Elevate your productions with a vast selection of third-party plugins, including VST3, Nyquist and more. Deep audio analysis:Visualize frequencies in Audacity\u0027s Spectogram view or use scientific Vamp analyzers to make discoveries.",
+    "Homepage": "https://www.audacityteam.org/",
+    "License": "GPL-3.0-or-later",
+    "ReleaseNotesUrl": "https://github.com/audacity/audacity/releases/tag/Audacity-4.0.1",
+    "SupportUrl": "https://support.audacityteam.org/",
+    "Tags": [
+      "audio",
+      "audio-editor",
+      "audio-recording",
+      "audioeditor",
+      "audiorecording",
+      "musegroup",
+      "music-studio",
+      "musicstudio",
+      "sound-recording",
+      "soundediting",
+      "soundrecording",
+      "xp8k0j757hhrdw"
+    ],
+    "Documentation": [
+      {
+        "Label": "FAQ",
+        "Url": "https://www.audacityteam.org/faq/"
+      },
+      {
+        "Label": "Manual",
+        "Url": "https://manual.audacityteam.org/"
+      },
+      {
+        "Label": "Wiki",
+        "Url": "https://github.com/audacity/audacity/wiki"
+      }
+    ],
+    "Author": "MuseCY SM Ltd.",
+    "Copyright": "Copyright \u00A9 1999-2026 Audacity Team.",
+    "PrivacyUrl": "https://www.audacityteam.org/desktop-privacy-notice/",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Docker.DockerDesktop",
+    "Name": "Docker Desktop",
+    "Version": "4.96.3",
+    "AvailableVersion": "4.96.3",
+    "InstalledVersion": "4.95.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Docker Inc.",
+    "Description": "Docker Desktop is an application for macOS and Windows machines for the building and sharing of containerized applications. Access Docker Desktop and follow the guided onboarding to build your first containerized application in minutes.",
+    "Homepage": "https://www.docker.com/products/docker-desktop",
+    "License": "Proprietary",
+    "SupportUrl": "https://www.docker.com/support",
+    "Tags": [
+      "container",
+      "containerization",
+      "develop",
+      "docker-desktop",
+      "virtualization",
+      "xp8cbj40xlbwkx"
+    ],
+    "Documentation": [],
+    "Author": "Docker Inc.",
+    "Copyright": "\u00A9 2015-2026 Docker Inc. All rights reserved.",
+    "PrivacyUrl": "https://www.docker.com/legal/privacy",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Unity.UnityHub",
+    "Name": "Unity Hub",
+    "Version": "3.22.4.65535",
+    "AvailableVersion": "3.22.4.65535",
+    "InstalledVersion": "\u003C 3.21.0.65535",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Unity Technologies Inc.",
+    "Description": "The Unity Hub is a standalone application that streamlines the way you navigate, download, and manage your Unity projects and installations.",
+    "Homepage": "https://unity.com/unity-hub",
+    "License": "Proprietary",
+    "SupportUrl": "https://support.unity.com/",
+    "Tags": [
+      "unity",
+      "unity3d"
+    ],
+    "Documentation": [
+      {
+        "Label": "Manual",
+        "Url": "https://docs.unity3d.com/hub/manual"
+      }
+    ],
+    "Author": "Unity Technologies Inc.",
+    "Copyright": "Copyright \u00A9 2026 Unity Technologies Inc.",
+    "PrivacyUrl": "https://unity.com/legal/privacy-policy",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "OpenJS.NodeJS.LTS",
+    "Name": "Node.js (LTS)",
+    "Version": "24.22.1",
+    "AvailableVersion": "24.22.1",
+    "InstalledVersion": "24.20.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Node.js Foundation",
+    "Description": "Node.js\u00AE is a free, open-source, cross-platform JavaScript runtime environment that lets developers create servers, web apps, command line tools and scripts.",
+    "Homepage": "https://nodejs.org/",
+    "License": "MIT",
+    "ReleaseNotesUrl": "https://github.com/nodejs/node/releases/tag/v24.22.1",
+    "SupportUrl": "https://github.com/nodejs/node/blob/v24.22.1/.github/SUPPORT.md",
+    "Tags": [
+      "coding",
+      "cross-platform",
+      "develop",
+      "development",
+      "environment",
+      "javascript",
+      "js",
+      "lts",
+      "node",
+      "npm",
+      "programming",
+      "runtime",
+      "v8"
+    ],
+    "Documentation": [
+      {
+        "Label": "Learn",
+        "Url": "https://nodejs.org/learn/"
+      },
+      {
+        "Label": "Documentation",
+        "Url": "https://nodejs.org/docs/v24.22.1/api/"
+      },
+      {
+        "Label": "About",
+        "Url": "https://nodejs.org/about/"
+      }
+    ],
+    "Author": "OpenJS Foundation",
+    "Copyright": "Copyright Node.js contributors. All rights reserved.",
+    "PrivacyUrl": "https://privacy-policy.openjsf.org/",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Microsoft.PowerShell",
+    "Name": "PowerShell",
+    "Version": "7.6.8.0",
+    "AvailableVersion": "7.6.8.0",
+    "InstalledVersion": "7.6.7.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Microsoft Corporation",
+    "Description": "PowerShell is a cross-platform (Windows, Linux, and macOS) automation and configuration tool/framework that works well with your existing tools and is optimized for dealing with structured data (e.g. JSON, CSV, XML, etc.), REST APIs, and object models. It includes a command-line shell, an associated scripting language and a framework for processing cmdlets.",
+    "Homepage": "https://microsoft.com/PowerShell",
+    "License": "MIT",
+    "SupportUrl": "https://github.com/PowerShell/PowerShell/issues",
+    "Tags": [
+      "command-line",
+      "cross-platform",
+      "open-source",
+      "powershell",
+      "pwsh",
+      "shell"
+    ],
+    "Documentation": [
+      {
+        "Label": "Product Documentation",
+        "Url": "https://learn.microsoft.com/powershell"
+      },
+      {
+        "Label": "FAQ",
+        "Url": "https://github.com/PowerShell/PowerShell/blob/master/docs/FAQ.md"
+      }
+    ],
+    "Author": "Microsoft Corporation",
+    "Copyright": "Copyright (c) Microsoft Corporation",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "GitHub.cli",
+    "Name": "GitHub CLI",
+    "Version": "2.103.2",
+    "AvailableVersion": "2.103.2",
+    "InstalledVersion": "2.102.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "GitHub, Inc.",
+    "Description": "GitHub CLI (gh) is a command-line tool that brings pull requests, issues, GitHub Actions, and other GitHub features to your terminal, so you can do all your work in one place.",
+    "Homepage": "https://cli.github.com/",
+    "License": "MIT",
+    "ReleaseNotesUrl": "https://github.com/cli/cli/releases/tag/v2.103.2",
+    "SupportUrl": "https://support.github.com/",
+    "Tags": [
+      "cli",
+      "command-line",
+      "enterprise",
+      "foss",
+      "git",
+      "github",
+      "open-source",
+      "terminal",
+      "tool",
+      "utility",
+      "workflow"
+    ],
+    "Documentation": [
+      {
+        "Label": "GitHub Docs",
+        "Url": "https://docs.github.com/github-cli/github-cli/"
+      },
+      {
+        "Label": "Manual",
+        "Url": "https://cli.github.com/manual/"
+      },
+      {
+        "Label": "Repository",
+        "Url": "https://github.com/cli/cli"
+      }
+    ],
+    "Copyright": "Copyright (c) 2019 GitHub Inc.",
+    "PrivacyUrl": "https://docs.github.com/site-policy/privacy-policies/github-privacy-statement",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "GitHub.Copilot",
+    "Name": "Copilot CLI",
+    "Version": "v1.0.103",
+    "AvailableVersion": "v1.0.103",
+    "InstalledVersion": "v1.0.98",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "GitHub, Inc.",
+    "Description": "GitHub Copilot CLI brings AI-powered coding assistance directly to your command line, enabling you to build, debug, and understand code through natural language conversations. Powered by the same agentic harness as GitHub\u0027s Copilot coding agent, it provides intelligent assistance while staying deeply integrated with your GitHub workflow.",
+    "Homepage": "https://github.com/github/copilot-cli",
+    "License": "Proprietary",
+    "ReleaseNotesUrl": "https://github.com/github/copilot-cli/releases/tag/v1.0.103",
+    "SupportUrl": "https://support.github.com/",
+    "Tags": [
+      "cli",
+      "copilot",
+      "github"
+    ],
+    "Documentation": [
+      {
+        "Label": "Wiki",
+        "Url": "https://github.com/github/copilot-cli/wiki"
+      }
+    ],
+    "Copyright": "Copyright (c) GitHub 2025. All rights reserved.",
+    "PrivacyUrl": "https://docs.github.com/site-policy/privacy-policies/github-privacy-statement",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "GitHub.CopilotApp",
+    "Name": "GitHub Copilot",
+    "Version": "1.1.32",
+    "AvailableVersion": "1.1.32",
+    "InstalledVersion": "1.1.26",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "GitHub Inc.",
+    "Description": "The GitHub Copilot app is a desktop application purpose-built for agent-driven development. It gives you a single place to direct AI agents across parallel workstreams, work with GitHub issues and pull requests, and manage the full development lifecycle\u2014without context-switching between terminals, IDEs, and browser tabs.  The app is built on GitHub Copilot CLI and integrates natively with GitHub, so your repositories, branches, and CI pipelines work out of the box. It\u0027s designed for workflows where you want to run multiple agents in parallel and stay focused on directing work rather than doing it all yourself.",
+    "Homepage": "https://github.com/features/preview/github-app",
+    "License": "Proprietary",
+    "ReleaseNotesUrl": "https://github.com/github/app/releases/tag/v1.1.32",
+    "SupportUrl": "https://support.github.com/",
+    "Tags": [],
+    "Documentation": [],
+    "Author": "GitHub Inc.",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "T3Tools.T3Code",
+    "Name": "T3 Code",
+    "Version": "0.1.2",
+    "AvailableVersion": "0.1.2",
+    "InstalledVersion": "0.1.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "T3 Tools",
+    "Description": "T3 Code is a minimal web GUI for coding agents.",
+    "Homepage": "https://t3.codes/",
+    "License": "MIT",
+    "ReleaseNotesUrl": "https://github.com/pingdotgg/t3code/releases/tag/v0.1.2",
+    "SupportUrl": "https://github.com/pingdotgg/t3code/issues",
+    "Tags": [],
+    "Documentation": [],
+    "Author": "T3 Tools Inc",
+    "Copyright": "Copyright \u00A9 2026 T3 Tools",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "junegunn.fzf",
+    "Name": "fzf",
+    "Version": "0.74.5",
+    "AvailableVersion": "0.74.5",
+    "InstalledVersion": "0.74.4",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Junegunn Choi",
+    "Description": "A general-purpose command-line fuzzy finder",
+    "Homepage": "https://github.com/junegunn/fzf",
+    "License": "MIT",
+    "ReleaseNotesUrl": "https://github.com/junegunn/fzf/releases/tag/v0.74.5",
+    "SupportUrl": "https://github.com/junegunn/fzf/issues",
+    "Tags": [
+      "cli",
+      "go"
+    ],
+    "Documentation": [],
+    "Author": "Junegunn Choi",
+    "Copyright": "Copyright (c) 2013-2026 Junegunn Choi",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Anthropic.Claude",
+    "Name": "Claude",
+    "Version": "2.42304.2",
+    "AvailableVersion": "2.42304.2",
+    "InstalledVersion": "2.42304.0.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Anthropic, PBC",
+    "Description": "Your AI partner on desktop. Fast, focused, and designed for deep work.",
+    "License": "Proprietary",
+    "SupportUrl": "https://docs.google.com/document/d/11rLWQYaReoZrRaoyPU3_gbgmDgLOKBVjEa-lvPDiWXE/edit",
+    "Tags": [
+      "ai",
+      "artificial-intelligence",
+      "artificialintelligence",
+      "chatbot",
+      "large-language-model",
+      "llm"
+    ],
+    "Documentation": [],
+    "Author": "Anthropic PBC",
+    "Copyright": "\u00A9 2026 Anthropic PBC",
+    "PurchaseUrl": "https://www.anthropic.com/pricing",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Microsoft.FoundryLocal",
+    "Name": "Foundry Local CLI",
+    "Version": "0.12.1.0",
+    "AvailableVersion": "0.12.1.0",
+    "InstalledVersion": "0.11.0.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Microsoft Corporation",
+    "Description": "Foundry Local brings the power of Azure AI Foundry to your local device. It allows you to run large language models (LLMs) directly on your hardware and keep all data processing on device for enhanced privacy and security. It also has an OpenAI compatible API and hardware acceleration out of the box, ensuring you are getting a simple and performant experience regardless of what hardware you are using.",
+    "Homepage": "https://github.com/microsoft/Foundry-Local",
+    "License": "Proprietary",
+    "SupportUrl": "https://github.com/microsoft/Foundry-Local/issues",
+    "Tags": [
+      "agent",
+      "ai",
+      "artificial-intelligence",
+      "cpu",
+      "cuda",
+      "gpu",
+      "inference",
+      "llm",
+      "machine-learning",
+      "ml",
+      "npu",
+      "slm"
+    ],
+    "Documentation": [
+      {
+        "Label": "Get started",
+        "Url": "https://learn.microsoft.com/en-us/azure/foundry-local/get-started"
+      }
+    ],
+    "Copyright": "Copyright (c) Microsoft Corporation",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Microsoft.VisualStudio.Community",
+    "Name": "Visual Studio Community 2026",
+    "Version": "18.11.1",
+    "AvailableVersion": "18.11.1",
+    "InstalledVersion": "18.10.3",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Microsoft Corporation",
+    "Description": "Everything you need to build modern apps - free for you, built for impact.",
+    "Homepage": "https://visualstudio.microsoft.com/",
+    "License": "Proprietary",
+    "Tags": [
+      "c#",
+      "c\u002B\u002B",
+      "vs"
+    ],
+    "Documentation": [],
+    "Copyright": "Copyright (c) Microsoft Corporation. All rights reserved.",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Git.Git",
+    "Name": "Git",
+    "Version": "2.56.0.3",
+    "InstalledVersion": "2.56.0.3",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "The Git Development Community",
+    "Description": "Git is a free and open source distributed version control system designed to handle everything from small to very large projects with speed and efficiency. Git for Windows focuses on offering a lightweight, native set of tools that bring the full feature set of the Git SCM to Windows while providing appropriate user interfaces for experienced Git users and novices alike.",
+    "Homepage": "https://gitforwindows.org/",
+    "License": "GPL-2.0",
+    "ReleaseNotesUrl": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.3",
+    "SupportUrl": "https://github.com/git-for-windows/git/issues",
+    "Tags": [
+      "git",
+      "vcs"
+    ],
+    "Documentation": [
+      {
+        "Label": "Wiki",
+        "Url": "https://github.com/git-for-windows/git/wiki"
+      }
+    ],
+    "Copyright": "Copyright (C) 1989, 1991 Free Software Foundation, Inc.",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Microsoft.VisualStudioCode",
+    "Name": "Microsoft Visual Studio Code",
+    "Version": "1.142.0",
+    "InstalledVersion": "1.142.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Microsoft Corporation",
+    "Description": "Microsoft Visual Studio Code is a code editor redefined and optimized for building and debugging modern web and cloud applications. Microsoft Visual Studio Code is free and available on your favorite platform - Linux, macOS, and Windows.",
+    "Homepage": "https://code.visualstudio.com/",
+    "License": "Microsoft Software License",
+    "ReleaseNotesUrl": "https://code.visualstudio.com/updates/v1_142",
+    "Tags": [
+      "developer-tools",
+      "editor"
+    ],
+    "Documentation": [],
+    "PrivacyUrl": "https://privacy.microsoft.com/",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Microsoft.WindowsTerminal",
+    "Name": "Windows Terminal",
+    "Version": "1.25.2733.0",
+    "InstalledVersion": "1.25.2733.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Microsoft Corporation",
+    "Description": "The new Windows Terminal, a tabbed command line experience for Windows.",
+    "Homepage": "https://docs.microsoft.com/windows/terminal",
+    "License": "MIT",
+    "ReleaseNotesUrl": "https://github.com/microsoft/terminal/releases/tag/v1.25.2733.0",
+    "SupportUrl": "https://github.com/microsoft/terminal/issues",
+    "Tags": [
+      "cli",
+      "cmd",
+      "command-line",
+      "command-prompt",
+      "console",
+      "developer-tools",
+      "powershell",
+      "ps",
+      "shell",
+      "terminal",
+      "utilities",
+      "wsl"
+    ],
+    "Documentation": [
+      {
+        "Label": "Wiki",
+        "Url": "https://github.com/microsoft/terminal/wiki"
+      }
+    ],
+    "Author": "Microsoft",
+    "Copyright": "Copyright (c) Microsoft Corporation. All rights reserved.",
+    "PrivacyUrl": "https://privacy.microsoft.com",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "XPDC2RH70K22MN",
+    "Name": "Discord",
+    "Version": "1.0.9188",
+    "InstalledVersion": "1.0.9262",
+    "Source": "msstore",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Discord, Inc.",
+    "Description": "Discord is designed for gaming and great for just chilling with friends or building a community. Customize your own space and gather your friends to talk while playing your favorite games, or just hang out.  GROUP CHAT THAT\u2019S ALL FUN \u0026 GAMES  \u2219 Discord is great for playing games and chilling with friends, or even building a worldwide community. Customize your own space to talk, play, and hang out in.  MAKE YOUR GROUP CHATS MORE FUN  \u2219 Create custom emoji, stickers, soundboard effects, and more to add your personality to voice, video, or text chat. Set your avatar, a custom status, and write your own profile to show up in chat your way.  STREAM LIKE YOU\u2019RE IN THE SAME ROOM  \u2219 High-quality and low-latency streaming makes it feel like you\u0027re hanging out on the couch with friends while playing a game, watching shows, looking at photos, or idk doing homework or something.  HOP IN WHEN YOU\u2019RE FREE, NO NEED TO CALL  \u2219 Easily hop in and out of voice or text chats without having to call or invite anyone, so you can chat with your friends before, during, and after your game session.  SEE WHO\u2019S AROUND TO CHILL  \u2219 See who\u2019s around, playing games, or just hanging out. For supported games, you can see what modes or characters your friends are playing and directly join up.  ALWAYS HAVE SOMETHING TO DO TOGETHER  \u2219 Watch videos, play built-in games, listen to music, or just scroll together and spam memes. Seamlessly text, call, video chat, and play games, all in one group chat.  WHEREVER YOU GAME, HANG OUT HERE  \u2219 On your PC, phone, or console, you can still hang out on Discord. Easily switch between devices and use tools to manage multiple group chats with friends.",
+    "Homepage": "https://discord.com/",
+    "License": "https://discord.com/licenses",
+    "SupportUrl": "https://support.discord.com/hc/en-us",
+    "Tags": [
+      "Voice",
+      "Chat",
+      "Text",
+      "Free",
+      "Game",
+      "Video",
+      "Group gaming"
+    ],
+    "Documentation": [],
+    "Copyright": "ms-windows-store://pdp/?ProductId=XPDC2RH70K22MN",
+    "PrivacyUrl": "https://discord.com/privacy",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Microsoft.VisualStudioCode.Insiders",
+    "Name": "Microsoft Visual Studio Code Insiders",
+    "Version": "1.127.0",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Microsoft Corporation",
+    "Description": "Microsoft Visual Studio Code is a code editor redefined and optimized for building and debugging modern web and cloud applications. Microsoft Visual Studio Code is free and available on your favorite platform - Linux, macOS, and Windows.",
+    "Homepage": "https://code.visualstudio.com",
+    "License": "Microsoft Pre-Release Software License",
+    "Tags": [
+      "developer-tools",
+      "editor"
+    ],
+    "Documentation": [],
+    "PrivacyUrl": "https://privacy.microsoft.com/",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "JetBrains.Rider",
+    "Name": "JetBrains Rider",
+    "Version": "2026.2.3.1",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "JetBrains s.r.o.",
+    "Description": "Develop .NET, ASP.NET, .NET Core, Xamarin or Unity applications on Windows, Mac, Linux",
+    "Homepage": "https://www.jetbrains.com/rider/",
+    "License": "Proprietary",
+    "ReleaseNotesUrl": "https://youtrack.jetbrains.com/articles/DOTNET-A-413/Rider-2026.2.3.1-release-notes",
+    "SupportUrl": "https://www.jetbrains.com/support/",
+    "Tags": [
+      ".net",
+      "asp.net",
+      "c#",
+      "code",
+      "coding",
+      "develop",
+      "development",
+      "dotnet",
+      "ide",
+      "programming",
+      "unity",
+      "xamarin"
+    ],
+    "Documentation": [
+      {
+        "Label": "Learning Rider",
+        "Url": "https://www.jetbrains.com/rider/documentation/"
+      }
+    ],
+    "Author": "JetBrains s.r.o.",
+    "Copyright": "Copyright \u00A9 2000-2026 JetBrains s.r.o.",
+    "PrivacyUrl": "https://www.jetbrains.com/legal/docs/privacy/privacy/",
+    "PurchaseUrl": "https://www.jetbrains.com/rider/buy/",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Neovim.Neovim",
+    "Name": "Neovim",
+    "Version": "0.12.6",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "neovim.io",
+    "Description": "Vim-fork focused on extensibility and usability",
+    "Homepage": "https://neovim.io/",
+    "License": "Apache-2.0 AND Vim",
+    "ReleaseNotesUrl": "https://github.com/neovim/neovim/releases/tag/v0.12.6",
+    "SupportUrl": "https://github.com/neovim/neovim/issues",
+    "Tags": [
+      "editor",
+      "nvim-qt",
+      "text",
+      "vi",
+      "vim"
+    ],
+    "Documentation": [],
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Mozilla.Firefox",
+    "Name": "Mozilla Firefox (en-US)",
+    "Version": "157.0.1",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Mozilla",
+    "Description": "Firefox Browser, also known as Mozilla Firefox or simply Firefox, is a free and open-source web browser developed by the Mozilla Foundation and its subsidiary, the Mozilla Corporation. Firefox uses the Gecko layout engine to render web pages, which implements current and anticipated web standards. In 2017, Firefox began incorporating new technology under the code name Quantum to promote parallelism and a more intuitive user interface. Firefox is officially available for Windows 7 or newer, macOS, and Linux. Its unofficial ports are available for various Unix and Unix-like operating systems including FreeBSD, OpenBSD, NetBSD, illumos, and Solaris Unix.",
+    "Homepage": "https://www.mozilla.org/firefox/",
+    "License": "MPL-2.0",
+    "ReleaseNotesUrl": "https://www.firefox.com/en-US/firefox/157.0.1/releasenotes/",
+    "SupportUrl": "https://support.mozilla.org/",
+    "Tags": [
+      "browser",
+      "gecko",
+      "internet",
+      "quantum",
+      "spidermonkey",
+      "web",
+      "web-browser",
+      "webpage"
+    ],
+    "Documentation": [],
+    "Author": "Mozilla Foundation",
+    "Copyright": "\u00A9 Firefox and Mozilla Developers; available under the MPL 2 license.",
+    "PrivacyUrl": "https://www.mozilla.org/privacy/firefox/",
+    "IsDescriptionDegraded": false
+  },
+  {
+    "Id": "Notepad\u002B\u002B.Notepad\u002B\u002B",
+    "Name": "Notepad\u002B\u002B",
+    "Version": "8.9.8.1",
+    "Source": "winget",
+    "PinState": {
+      "Kind": 0,
+      "IsPinned": false
+    },
+    "Publisher": "Notepad\u002B\u002B Team",
+    "Description": "Notepad\u002B\u002B is a free (as in \u201Cfree speech\u201D and also as in \u201Cfree beer\u201D) source code editor and Notepad replacement that supports several languages. Running in the MS Windows environment, its use is governed by GNU General Public License.",
+    "Homepage": "https://notepad-plus-plus.org/",
+    "License": "GPL-3.0-or-later",
+    "ReleaseNotesUrl": "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/tag/v8.9.8.1",
+    "SupportUrl": "https://notepad-plus-plus.org/online-help",
+    "Tags": [
+      "development",
+      "editor",
+      "foss",
+      "notepad",
+      "open-source",
+      "text",
+      "text-editor"
+    ],
+    "Documentation": [
+      {
+        "Label": "Wiki",
+        "Url": "https://github.com/notepad-plus-plus/notepad-plus-plus/wiki"
+      }
+    ],
+    "Author": "Don Ho",
+    "Copyright": "Copyright (C)2026 Don HO \u003Cdon.h@free.fr\u003E.",
+    "IsDescriptionDegraded": false
+  }
+]

@@ -237,9 +237,9 @@ public sealed class UxInteractionTests
         });
         ui.Invoke ("AskBatchUpgrade");
         ui.PumpUntil (() => labels is not null && !ui.State.Loading);
-        Assert.Contains ("Alpha.Tool", labels![0]);
-        Assert.Contains ("Zulu.Tool", labels[1]);
-        Assert.Contains ("msstore", labels[2]);
+        Assert.StartsWith ("READY Alpha —", labels![0]);
+        Assert.StartsWith ("READY Zulu —", labels[1]);
+        Assert.StartsWith ("READY Example —", labels[2]);
         Assert.Equal (0, backend.Mutations);
     }
 

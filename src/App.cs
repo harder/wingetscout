@@ -146,7 +146,7 @@ public sealed partial class App : Window
             SchemeName = Theme.SurfaceSchemeName
         };
         _packageTable.Style.ShowHorizontalHeaderUnderline = true;
-        _packageTable.Style.ExpandLastColumn = true;
+        _packageTable.Style.ExpandLastColumn = false;
 
         _mainLoadingLabel = new ()
         {
@@ -920,10 +920,14 @@ public sealed partial class App : Window
             // Render a single message row explaining *why* the list is empty, instead of a bare
             // headered table. The message is contextual: "All packages are up to date!" vs. a
             // filter/pin-specific note.
+            _packageTable.Style.ColumnStyles.Clear ();
+            _packageTable.Style.ExpandLastColumn = true;
             _packageTable.Table = new EnumerableTableSource<string> ([EmptyStateMessage (_state)], new ()
             {
                 { " ", message => message }
             });
+            _packageTable.RefreshContentSize ();
+            _packageTable.Update ();
 
             RefreshStatusBar ();
             UpdateScoutVisibility ();
@@ -939,10 +943,9 @@ public sealed partial class App : Window
             {
                 [HeaderWithSort ("Name", SortField.Name)] = p =>
                 {
-                    string marker = _state.BatchSelected.Contains (BatchPlanning.Key (p)) ? "[x] " : "    ";
                     string pin = p.PinState.IsPinned ? "📌 " : string.Empty;
 
-                    return marker + pin + p.Name;
+                    return pin + p.Name;
                 },
                 [HeaderWithSort ("Id", SortField.Id)] = p => FormatIdForDisplay (p.Id),
                 [HeaderWithSort ("Version", SortField.Version)] = p => p.Version,
@@ -954,8 +957,7 @@ public sealed partial class App : Window
         {
             cols = new ()
             {
-                [HeaderWithSort ("Name", SortField.Name)] = p =>
-                    (_searchSelected.ContainsKey (BatchPlanning.Key (p)) ? "[x] " : "    ") + p.Name,
+                [HeaderWithSort ("Name", SortField.Name)] = p => p.Name,
                 [HeaderWithSort ("Id", SortField.Id)] = p => FormatIdForDisplay (p.Id),
                 [HeaderWithSort ("Version", SortField.Version)] = p => p.Version,
                 ["Source"] = p => p.Source
@@ -978,7 +980,7 @@ public sealed partial class App : Window
         }
 
         EnumerableTableSource<Package> raw = new (_state.Filtered, cols);
-        MarkedTableSource marked = new (raw);
+        MarkedTableSource marked = new (raw, p => CurrentSelectionKeys ().Contains (BatchPlanning.Key (p)));
         _packageTable.Table = marked;
 
         ApplyColumnStyles (marked);
@@ -1024,6 +1026,7 @@ public sealed partial class App : Window
     /// </summary>
     private void ApplyColumnStyles (MarkedTableSource marked)
     {
+        _packageTable.Style.ExpandLastColumn = false;
         _packageTable.Style.ColumnStyles.Clear ();
         _packageTable.Style.HeaderScheme = new Scheme (_packageTable.GetScheme ())
         {
@@ -1031,7 +1034,7 @@ public sealed partial class App : Window
             Focus = new (Theme.Accent, Theme.Surface, TextStyle.Bold)
         };
 
-        // Column 0: the cursor marker — exactly 1 cell wide.
+        // Column 0: a batch-selection check, or the cursor dot — exactly 1 cell wide.
         ColumnStyle markerStyle = _packageTable.Style.GetOrCreateColumnStyle (0);
         markerStyle.MinWidth = 1;
         markerStyle.MaxWidth = 1;
@@ -1104,15 +1107,18 @@ public sealed partial class App : Window
         // Keep the full layout when its minimum widths fit. Otherwise remove secondary columns
         // before shrinking the useful package name or pushing versions outside the viewport.
         int nameW = 24, idW = 28, verW = 14;
-        const int sourceW = 8, tableGutter = 8;
+        const int sourceW = 8, tableGutter = 1;
         const int idMin = 16;
 
         bool hasAvailable = names.Any (name => name.StartsWith ("Available", StringComparison.Ordinal));
         int dataCols = Math.Max (0, names.Length - 1); // exclude the 1-wide marker column
-        int fullMinimum = 1 + dataCols + 1 + sourceW + tableGutter + 14 + idMin + 9 + (hasAvailable ? 14 : 0);
+        // Keep enough room for names before restoring Id; a narrower Source must not
+        // bring secondary columns back prematurely in compact windows.
+        int fullMinimum = 1 + dataCols + 1 + sourceW + tableGutter + 21 + idMin + 9 + (hasAvailable ? 14 : 0);
         bool hideId = avail < fullMinimum;
-        // Four compact data columns need 52 cells, including marker, separators and gutter.
-        int compactWithSourceMinimum = 1 + 5 + sourceW + tableGutter + 12 + 9 + 9;
+        // Reserve only the actual one-cell rendering gutter; give spare width to names.
+        int compactWithSourceMinimum = 1 + 5 + sourceW + tableGutter + 14 + verW
+                                       + HeaderWithSort ("Available", SortField.AvailableVersion).GetColumns ();
         bool hideSource = hasAvailable && avail < compactWithSourceMinimum;
         int nameMin = hideId ? 12 : 14;
         int availW = hideId ? HeaderWithSort ("Available", SortField.AvailableVersion).GetColumns () : 14;
@@ -1129,6 +1135,7 @@ public sealed partial class App : Window
         if (deficit > 0 && !hideId) { int c = Math.Min (deficit, idW - idMin); idW -= c; deficit -= c; }
         if (deficit > 0) { int c = Math.Min (deficit, nameW - nameMin); nameW -= c; deficit -= c; }
         if (deficit > 0) { int c = Math.Min (deficit, verW - verMin); verW -= c; deficit -= c; }
+        if (deficit < 0) nameW -= deficit;
 
         for (int i = 1; i < names.Length; i++)
         {
@@ -3318,19 +3325,22 @@ public sealed partial class App : Window
     private sealed class MarkedTableSource : IEnumerableTableSource<Package>
     {
         private readonly EnumerableTableSource<Package> _inner;
+        private readonly Func<Package, bool> _isSelected;
         private readonly string [] _columns;
 
-        public MarkedTableSource (EnumerableTableSource<Package> inner)
+        public MarkedTableSource (EnumerableTableSource<Package> inner, Func<Package, bool> isSelected)
         {
             _inner = inner;
+            _isSelected = isSelected;
             _columns = new [] { " " }.Concat (inner.ColumnNames).ToArray ();
         }
 
         public int CursorRow { get; set; } = -1;
 
         public object this [int row, int col]
+            // Use a plain text glyph so the current mark cannot expand into an emoji.
             => col == 0
-                   ? (row == CursorRow ? "●" : " ")
+                   ? (_isSelected (_inner.GetObjectOnRow (row)) ? row == CursorRow ? "◆" : "✓" : row == CursorRow ? "●" : " ")
                    : _inner [row, col - 1];
 
         public int Rows => _inner.Rows;

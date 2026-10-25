@@ -559,19 +559,19 @@ public sealed class CrossCuttingWorkflowTests
         MockBackend backend = new ();
         Package initial = Assert.Single (
             await backend.ListInstalledAsync (null, CancellationToken.None),
-            package => package.Id == "Git.Git");
+            package => package.Id == "7zip.7zip");
         Assert.False (initial.PinState.IsPinned);
 
         await backend.PinAsync (initial.Id, CancellationToken.None);
         Package afterPin = Assert.Single (
-            await backend.SearchAsync ("Git.Git", null, CancellationToken.None),
-            package => package.Id == "Git.Git");
+            await backend.SearchAsync ("7zip.7zip", null, CancellationToken.None),
+            package => package.Id == "7zip.7zip");
         Assert.True (afterPin.PinState.IsPinned);
 
         await backend.UnpinAsync (afterPin.Id, CancellationToken.None);
         Package afterUnpin = Assert.Single (
             await backend.ListUpgradesAsync (null, CancellationToken.None),
-            package => package.Id == "Git.Git");
+            package => package.Id == "7zip.7zip");
         Assert.Equal (PinState.Unpinned, afterUnpin.PinState);
     }
 
