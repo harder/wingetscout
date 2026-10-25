@@ -6,28 +6,9 @@ namespace WinGetScout;
 /// </summary>
 public sealed class MockBackend : IBackend
 {
-    private static readonly PackageTemplate [] InstalledTemplates =
-    [
-        new ("Microsoft.VisualStudioCode", "Microsoft Visual Studio Code", "1.95.0", "winget"),
-        new ("Git.Git", "Git", "2.46.0", "winget", "2.47.0"),
-        new ("GitHub.cli", "GitHub CLI", "2.55.0", "winget"),
-        new ("Microsoft.PowerShell", "PowerShell", "7.4.5", "winget", "7.5.0"),
-        new ("9NKSQGP7F2NH", "WhatsApp Desktop", "2.2412.10.0", "msstore"),
-        new ("Notepad++.Notepad++", "Notepad++", "8.6.9", "winget"),
-        new ("Mozilla.Firefox", "Mozilla Firefox", "131.0.3", "winget", "132.0.1"),
-        new ("Microsoft.WindowsTerminal", "Windows Terminal", "1.21.3231.0", "winget"),
-        new ("Python.Python.3.12", "Python 3.12", "3.12.7", "winget"),
-        new ("Docker.DockerDesktop", "Docker Desktop", "4.34.0", "winget", "4.35.1")
-    ];
-
-    private static readonly PackageTemplate [] SearchTemplates =
-    [
-        new ("Microsoft.VisualStudioCode", "Visual Studio Code", "1.95.0", "winget"),
-        new ("Microsoft.VisualStudioCode.Insiders", "Visual Studio Code Insiders", "1.96.0", "winget"),
-        new ("Anthropic.Claude", "Claude", "0.7.5", "winget"),
-        new ("JetBrains.Rider", "JetBrains Rider", "2024.2.7", "winget"),
-        new ("Neovim.Neovim", "Neovim", "0.10.2", "winget")
-    ];
+    private static IEnumerable<PackageDetail> InstalledTemplates =>
+        MockCatalog.Packages.Where (package => !string.IsNullOrEmpty (package.InstalledVersion));
+    private static IReadOnlyList<PackageDetail> SearchTemplates => MockCatalog.Packages;
 
     private readonly object _pinsGate = new ();
     private readonly Dictionary<string, PinState> _pins = new (StringComparer.OrdinalIgnoreCase);
@@ -37,13 +18,13 @@ public sealed class MockBackend : IBackend
     {
         return Task.FromResult<IReadOnlyList<Package>> (
             Materialize (
-                SearchTemplates.Concat (InstalledTemplates),
+                SearchTemplates,
                 template => (string.IsNullOrEmpty (query)
                              || template.Name.Contains (query, StringComparison.OrdinalIgnoreCase)
                              || template.Id.Contains (query, StringComparison.OrdinalIgnoreCase))
                             && (string.IsNullOrEmpty (source)
                                 || template.Source.Equals (source, StringComparison.OrdinalIgnoreCase)),
-                ct));
+                ct, search: true));
     }
 
     public Task<IReadOnlyList<Package>> ListInstalledAsync (string? source, CancellationToken ct)
@@ -73,7 +54,7 @@ public sealed class MockBackend : IBackend
     public Task<PackageDetail?> ShowAsync (string id, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
-        PackageTemplate? template = InstalledTemplates.Concat (SearchTemplates)
+        PackageDetail? template = SearchTemplates
                                                      .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
                                                          && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
 
@@ -90,19 +71,24 @@ public sealed class MockBackend : IBackend
             Name = p.Name,
             Version = p.Version,
             AvailableVersion = p.AvailableVersion,
+            InstalledVersion = p.InstalledVersion,
             Source = p.Source,
             PinState = p.PinState,
-            Publisher = $"{p.Name.Split (' ') [0]} Team",
-            Description = $"Sample details for {p.Name}. In a live WinGet session, Scout shows "
-                          + "package metadata from the active source and available actions here.",
-            Homepage = $"https://example.invalid/{p.Id}",
-            License = "MIT",
-            ReleaseNotesUrl = $"https://example.invalid/{p.Id}/releases",
-            SupportUrl = $"https://example.invalid/{p.Id}/support",
-            Tags = ["mock", "cli", "utility"],
-            Documentation = [new ("Getting started", $"https://example.invalid/{p.Id}/docs")],
-            ProductCodes = [$"{{{p.Id}-0000}}"],
-            PackageFamilyNames = p.Source == "msstore" ? [$"{p.Id}_8wekyb3d8bbwe"] : null
+            Publisher = template.Publisher,
+            Description = template.Description,
+            Homepage = template.Homepage,
+            License = template.License,
+            ReleaseNotesUrl = template.ReleaseNotesUrl,
+            SupportUrl = template.SupportUrl,
+            Author = template.Author,
+            Copyright = template.Copyright,
+            PrivacyUrl = template.PrivacyUrl,
+            PurchaseUrl = template.PurchaseUrl,
+            InstallationNotes = template.InstallationNotes,
+            Tags = template.Tags?.ToArray (),
+            Documentation = template.Documentation?.ToArray (),
+            ProductCodes = template.ProductCodes?.ToArray (),
+            PackageFamilyNames = template.PackageFamilyNames?.ToArray ()
         };
 
         return Task.FromResult<PackageDetail?> (detail);
@@ -111,13 +97,15 @@ public sealed class MockBackend : IBackend
     public Task<IReadOnlyList<string>> ListVersionsAsync (string id, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
-        PackageTemplate? p = SearchTemplates.Concat (InstalledTemplates)
+        PackageDetail? p = SearchTemplates
                                             .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
                                                 && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
-        string baseV = p?.AvailableVersion ?? p?.Version ?? "1.0.0";
+        string baseV = p?.Version ?? "1.0.0";
 
         // A small, distinct, newest-first list so the version picker is exercisable on any host.
-        IReadOnlyList<string> versions = new [] { baseV, "1.1.0", "1.0.0", "0.9.0" }
+        IReadOnlyList<string> versions = new [] { baseV, p?.InstalledVersion }
+                                         .OfType<string> ()
+                                         .Where (version => !version.StartsWith ('<'))
                                          .Distinct (StringComparer.OrdinalIgnoreCase)
                                          .ToList ();
 
@@ -127,7 +115,7 @@ public sealed class MockBackend : IBackend
     public Task<InstallerPreview?> GetInstallerPreviewAsync (string id, string? version, InstallSettings? settings, CancellationToken ct, string? source = null)
     {
         ct.ThrowIfCancellationRequested ();
-        PackageTemplate? p = SearchTemplates.Concat (InstalledTemplates)
+        PackageDetail? p = SearchTemplates
                                             .FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
                                                 && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
         if (p is null) return Task.FromResult<InstallerPreview?> (null);
@@ -249,7 +237,7 @@ public sealed class MockBackend : IBackend
         ct.ThrowIfCancellationRequested ();
         await SimulateProgressAsync (progress, downloads: true, ct);
 
-        PackageTemplate? template = InstalledTemplates.FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
+        PackageDetail? template = InstalledTemplates.FirstOrDefault (x => x.Id.Equals (id, StringComparison.OrdinalIgnoreCase)
             && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
         if (template?.AvailableVersion is { } upgradedVersion)
         {
@@ -339,20 +327,20 @@ public sealed class MockBackend : IBackend
     }
 
     private IReadOnlyList<Package> Materialize (
-        IEnumerable<PackageTemplate> templates,
-        Func<PackageTemplate, bool> predicate,
-        CancellationToken ct)
+        IEnumerable<PackageDetail> templates,
+        Func<PackageDetail, bool> predicate,
+        CancellationToken ct, bool search = false)
     {
         IReadOnlyDictionary<string, PinState> pins = SnapshotPins (ct);
         List<Package> packages = [];
 
-        foreach (PackageTemplate template in templates)
+        foreach (PackageDetail template in templates)
         {
             ct.ThrowIfCancellationRequested ();
 
             if (predicate (template))
             {
-                packages.Add (CreatePackage (template, pins));
+                packages.Add (CreatePackage (template, pins, search));
             }
         }
 
@@ -370,8 +358,8 @@ public sealed class MockBackend : IBackend
     }
 
     private Package CreatePackage (
-        PackageTemplate template,
-        IReadOnlyDictionary<string, PinState> pins)
+        PackageDetail template,
+        IReadOnlyDictionary<string, PinState> pins, bool search = false)
     {
         string? upgradedVersion;
         lock (_pinsGate) _upgradedVersions.TryGetValue ($"{template.Source}\u001f{template.Id}", out upgradedVersion);
@@ -379,17 +367,12 @@ public sealed class MockBackend : IBackend
         {
             Id = template.Id,
             Name = template.Name,
-            Version = upgradedVersion ?? template.Version,
+            Version = upgradedVersion ?? (search ? template.Version : template.InstalledVersion ?? template.Version),
+            InstalledVersion = upgradedVersion ?? template.InstalledVersion,
             Source = template.Source,
             AvailableVersion = upgradedVersion is null ? template.AvailableVersion : null,
             PinState = pins.GetValueOrDefault (template.Id, PinState.Unpinned)
         };
     }
 
-    private sealed record PackageTemplate (
-        string Id,
-        string Name,
-        string Version,
-        string Source,
-        string? AvailableVersion = null);
 }

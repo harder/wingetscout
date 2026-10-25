@@ -171,13 +171,13 @@ public sealed class RunWorkflowTests
     }
 
     [Fact]
-    public async Task MockDownloadRetryCanReviewDuplicateCatalogEntriesWithoutThrowing ()
+    public async Task MockDownloadRetryReviewsTheUniqueCatalogEntryWithoutThrowing ()
     {
         RunItem item = new ("Microsoft.VisualStudioCode", "Visual Studio Code", "winget", "Skipped", "Cancelled.")
             { Request = new (OperationKind.Download) };
         BatchPlan plan = await RetryPlanning.ReviewAsync (new MockBackend (), [item], CancellationToken.None);
-        Assert.Equal (0, plan.Ready);
-        Assert.Contains ("ambiguous", Assert.Single (plan.Items).Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal (1, plan.Ready);
+        Assert.Equal (item.Id, Assert.Single (plan.Items).Package.Id);
     }
 
     [Fact]

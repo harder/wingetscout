@@ -7,6 +7,14 @@ explains the main workflows and where their results are stored.
 This guide describes v1.1.0. See the [release notes](releases/1.1.0.md) for
 the batch, retry, and diagnostic improvements added since v1.0.3.
 
+In the unreleased source build, a one-cell `✓` in the left marker column identifies
+marked Search and Upgrades packages. The current unmarked row uses `●`, and package
+names no longer reserve selection padding. Package Details also omits the Product
+code list. It prioritizes descriptions, uses compact clickable link labels, and
+wraps long IDs. Help and review dialogs also use the available width more
+effectively. These changes are not in the published 1.1.0 downloads. See the
+[UX audit](ux-audit-2026-10-24.md) for the checked surfaces and limits.
+
 ## Navigate and find packages
 
 The **Search**, **Installed**, and **Upgrades** tabs share a package list and

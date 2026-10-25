@@ -117,6 +117,7 @@
     <!-- Expose internal parser helpers (DedupePackages, ParsePinState, CompareVersionsLike) to the test project. -->
     <InternalsVisibleTo Include="WinGetScout.Tests" />
     <EmbeddedResource Include="src/notification.ps1" LogicalName="WinGetScout.notification.ps1" />
+    <EmbeddedResource Include="src/MockData/catalog.json" LogicalName="WinGetScout.MockData.catalog.json" />
   </ItemGroup>
 
   <ItemGroup>

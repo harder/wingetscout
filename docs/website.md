@@ -9,6 +9,10 @@ Run `python site/build.py` from the repository root to build `site/_build/` and 
 The four theme PNGs and two short GIFs in `site/media/` come from the real app in
 safe `--mock` mode and show sample packages.
 
+Current source builds use the frozen [catalog snapshot](../src/MockData/README.md)
+for realistic mock sessions. Local UX review captures are under
+`publish/ux-audit/`; published media continues to describe its tagged release.
+
 The current captures show the 1.1.0 UI (the changes merged in PRs #54–56).
 The search demo marks a result,
 opens Actions, reviews its install plan, and inspects Details; the upgrades demo

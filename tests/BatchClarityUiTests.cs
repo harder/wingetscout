@@ -8,6 +8,57 @@ namespace WinGetScout.Tests;
 public sealed class BatchClarityUiTests
 {
     [Theory]
+    [InlineData (AppMode.Search)]
+    [InlineData (AppMode.Upgrades)]
+    public void BatchMarksUseOneCellWithoutIndentingNamesAcrossNavigationFilterAndResize (AppMode mode)
+    {
+        using ListNavigationTests.UiSession ui = new (mode, 3);
+        ITableSource source = ui.Table.Table!;
+        Assert.Equal ("Package 000", source [0, 1]);
+        Assert.Equal ("●", source [0, 0]);
+
+        ui.Press (new Key (' '));
+        Assert.Same (source, ui.Table.Table);
+        Assert.Equal ("✓", source [0, 0]);
+        ui.Press (KeyCode.CursorDown);
+        Assert.Equal ("✓", source [0, 0]);
+        Assert.Equal ("●", source [1, 0]);
+        ui.Press (new Key (' '));
+        Assert.Equal ("✓", source [1, 0]);
+        Assert.Equal ("Package 001", source [1, 1]);
+
+        ui.State.LocalFilter = "001";
+        ui.State.ApplyFilter ();
+        ui.Invoke ("RefreshTable");
+        Assert.Equal ("✓", ui.Table.Table! [0, 0]);
+        Assert.Contains ("1 hidden", ui.Get<FrameView> ("_listFrame").Title);
+        ui.Window.Width = 80;
+        ui.Application.LayoutAndDraw ();
+        ColumnStyle marker = ui.Table.Style.GetOrCreateColumnStyle (0);
+        Assert.Equal (1, marker.MinWidth);
+        Assert.Equal (1, marker.MaxWidth);
+        Assert.Equal ("Package 001", ui.Table.Table [0, 1]);
+
+        ui.Press (new Key ('a'));
+        Assert.Equal ("●", ui.Table.Table [0, 0]);
+        ui.State.LocalFilter = string.Empty;
+        ui.State.ApplyFilter ();
+        ui.Invoke ("RefreshTable");
+        Assert.Equal ("✓", ui.Table.Table! [0, 0]);
+        ui.Press (KeyCode.Esc);
+        Assert.DoesNotContain (Enumerable.Range (0, 3), row => Equals ("✓", ui.Table.Table [row, 0]));
+        ui.Press (new Key ('a'));
+        Assert.All (Enumerable.Range (0, 3), row => Assert.Equal ("✓", ui.Table.Table [row, 0]));
+        ui.Window.Width = 140;
+        ui.Application.LayoutAndDraw ();
+        Assert.All (Enumerable.Range (0, 3), row => Assert.Equal ($"Package {row:D3}", ui.Table.Table [row, 1]));
+        ui.State.Packages [2].PinState = new (PinStateKind.Blocking);
+        ui.Invoke ("RefreshTable");
+        Assert.Equal ("✓", ui.Table.Table! [2, 0]);
+        Assert.Equal (mode == AppMode.Upgrades ? "📌 Package 002" : "Package 002", ui.Table.Table [2, 1]);
+    }
+
+    [Theory]
     [InlineData (true)]
     [InlineData (false)]
     public void EnterOnReviewRowOpensDetailsInsteadOfApprovingTheBatch (bool ready)
@@ -119,9 +170,9 @@ public sealed class BatchClarityUiTests
         });
         ui.Press (new Key ('i'));
         ui.PumpUntil (() => labels is not null && !ui.State.Loading);
-        Assert.Contains ("Alpha.Tool", labels![0]);
-        Assert.Contains ("Zulu.Tool", labels[1]);
-        Assert.Contains ("Hidden.Tool", labels[2]);
+        Assert.StartsWith ("READY Alpha —", labels![0]);
+        Assert.StartsWith ("READY Zulu —", labels[1]);
+        Assert.StartsWith ("READY Hidden —", labels[2]);
         Assert.Equal (0, backend.Mutations);
     }
 

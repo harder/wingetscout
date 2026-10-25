@@ -684,8 +684,8 @@ public sealed class HelpDialog : Runnable
     {
         Title = " Help ";
         BorderStyle = LineStyle.Rounded;
-        Width = Dim.Percent (60);
-        Height = Dim.Percent (70);
+        Width = Dim.Percent (90);
+        Height = Dim.Percent (85);
         X = Pos.Center ();
         Y = Pos.Center ();
         SchemeName = Theme.SurfaceSchemeName;
@@ -704,14 +704,19 @@ public sealed class HelpDialog : Runnable
             header += $"COM unavailable: {comFallbackReason} — using CLI.\n\n";
         }
 
-        Code content = new ()
+        Markdown content = new ()
         {
             X = 1,
             Y = 0,
             Width = Dim.Fill (1),
             Height = Dim.Fill (1),
-            Text = header + HelpText
+            Text = header + HelpText,
+            CanFocus = true,
+            UseThemeBackground = false,
+            ShowHeadingPrefix = false
         };
+        content.VerticalScrollBar.VisibilityMode = ScrollBarVisibilityMode.Always;
+        content.HorizontalScrollBar.VisibilityMode = ScrollBarVisibilityMode.None;
         ReadOnlyTextNavigation.Configure (content);
         Add (content);
 
@@ -724,6 +729,7 @@ public sealed class HelpDialog : Runnable
         };
         close.Accepting += (_, _) => RequestStop ();
         Add (close);
+        content.SetFocus ();
 
         KeyDown += (_, key) =>
                    {
@@ -743,61 +749,50 @@ public sealed class HelpDialog : Runnable
 
     private const string HelpText =
         """
-        Navigation
-          up / k        Move up
-          dn / j        Move down
-          PgUp / PgDn   Page navigation
-          Home / End    Jump to start / end
-          ← / →         Switch tabs (Search/Installed/Upgrades)
-          1 / 2 / 3     Jump directly to Search/Installed/Upgrades
-          Tab / S-Tab   Toggle focus between list and detail
-          /  or  s      Search (Search tab) / local filter
-          f             Cycle source filter
-          r             Refresh
+        ## Navigation
+        - **↑ / k**, **↓ / j** — Move through rows or scroll Details.
+        - **PgUp / PgDn**, **Home / End** — Page or jump to either end.
+        - **← / →**, **1 / 2 / 3** — Switch Search, Installed, Upgrades tabs.
+        - **Tab / Shift+Tab** — Move focus between the list and Details.
+        - **/ or s** — Search the catalog, or filter Installed/Upgrades.
+        - **f** — Cycle sources. **r** — Refresh.
 
-        Actions
-          D             Backend and source diagnostics
-          m / Shift+F10 Contextual action menu
-          i             Install highlighted / review selected (Search)
-          I             Install specific version (COM list, CLI version entry)
-          A             Advanced install (scope / mode / arch / args)
-          d             Download installer only (no install)
-          u             Upgrade highlighted / review selected (Upgrades)
-          x             Uninstall
-          V             Verify install (COM backend)
-          R             Repair install (COM backend)
-          p             Pin / Unpin
-          Space         Toggle batch select (Search / Upgrades)
-          a             Select / deselect visible rows (Search / Upgrades)
-          B             Review and install selected search packages
-          U             Batch upgrade selected
-          g             Save / load / delete package sets (Search)
-          C             Scheduled update checks (Upgrades)
-          L             Recent runs, diagnostics, and reviewed retries
-          e             Export visible list to CSV
-          P             Cycle pin filter
-          S             Cycle sort field (↑/↓; Available on Upgrades)
-          o             Open package homepage
-          c             Open changelog / release notes
+        ## Package actions
+        - **m / Shift+F10** — Open all actions for this package and selection.
+        - **i** — Install the row or review marked Search packages.
+        - **u** — Upgrade the row or review marked Upgrades packages.
+        - **I** — Choose or enter a version. **A** — Advanced install options.
+        - **d** — Download an installer without installing it.
+        - **x** — Uninstall. **p** — Pin or unpin.
+        - **V / R** — Verify or repair, when supported.
+        - **o / c** — Open the homepage or release notes.
 
-        Mouse
-          Click tab to switch view
-          Click row to select
-          Right-click row for actions
-          Scroll wheel to navigate
+        ## Marked packages
+        - **Space** — Toggle the row's mark in Search or Upgrades.
+        - **a** — Toggle marks on visible rows; hidden marks are kept.
+        - **B / U** — Review marked installs or upgrades before approving.
+        - **Esc** — Clear all marks, including hidden packages.
+        - **g** — Save, load, or delete a package set in Search.
 
-        General
-          ?             Toggle this help
-          t             Theme picker (Amber / Sage / Moss & Olive / Dusty Rose)
-          Esc           Cancel a check/operation, close input, or clear marked packages
-          q / Ctrl+Q    Quit (Ctrl+Q works from fields and dialogs)
+        ## Other controls
+        - **D** — Backend/source diagnostics. **L** — Recent runs and retries.
+        - **C** — Scheduled update checks in Upgrades.
+        - **e** — Export visible rows to CSV. **P** — Cycle the pin filter.
+        - **S** — Cycle sorting. **t** — Choose a theme.
+        - **?** — Toggle Help. Use arrows or Page Up/Down to scroll it.
+        - **Esc** — Cancel pending work, clear a filter, or close a dialog.
+        - **q / Ctrl+Q** — Quit. Ctrl+Q also works in fields and dialogs.
+
+        ## Mouse
+        Click a tab to switch views, click a row to inspect it, right-click for
+        actions, and use the wheel to scroll the list or Details.
         """;
 }
 
 /// <summary>Keyboard scrolling for read-only text views, which do not bind navigation themselves.</summary>
 internal static class ReadOnlyTextNavigation
 {
-    internal static void Configure (Code text)
+    internal static void Configure (View text)
     {
         text.KeyDown += (_, key) =>
         {

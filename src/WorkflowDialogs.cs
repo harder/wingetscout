@@ -23,9 +23,8 @@ public sealed class BatchPlanDialog : Runnable<bool>
         Label hint = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = 1, Text = plan.Ready > 0
             ? "Enter Details · Tab actions · Esc Cancel"
             : "Nothing ready · Enter Details · Esc Cancel" };
-        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
-        rows.SetSource (new ObservableCollection<string> (plan.Items.Select (x =>
-            $"{(x.CanRun ? "READY" : "SKIP ")}  {x.Package.Name} [{x.Package.Id}] ({x.Package.Source})  —  {x.Reason}").ToList ()));
+        PackageListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
+        rows.SetSummaryRows (plan.Items.Select (x => (x.CanRun ? "READY" : "SKIP", x.Package.Name, x.Reason)));
         rows.SelectedItem = plan.Items.Count > 0 ? 0 : null;
         Button details = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Details", Enabled = plan.Items.Count > 0 };
         void Details ()
@@ -42,8 +41,9 @@ public sealed class BatchPlanDialog : Runnable<bool>
         }
         details.Accepting += (_, e) => { Details (); e.Handled = true; };
         rows.Accepting += (_, e) => { Details (); e.Handled = true; };
-        Button run = new () { X = Pos.Center () - 8, Y = Pos.AnchorEnd (1), Text = $"_{plan.Action} ({plan.Ready})", IsDefault = true, Enabled = plan.Ready > 0 };
-        Button cancel = new () { X = Pos.Right (run) + 2, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        Button run = new () { Y = Pos.AnchorEnd (1), Text = $"_{plan.Action} ({plan.Ready})", IsDefault = true, Enabled = plan.Ready > 0 };
+        Button cancel = new () { X = Pos.AnchorEnd () - 1, Y = Pos.AnchorEnd (1), Text = "Cancel" };
+        run.X = Pos.Left (cancel) - Pos.Func (_ => run.Frame.Width, run) - 2;
         run.Accepting += (_, e) => { Result = true; RequestStop (); e.Handled = true; };
         cancel.Accepting += (_, e) => { Result = false; RequestStop (); e.Handled = true; };
         Add (summary, hint, rows, details, run, cancel);
@@ -70,9 +70,8 @@ public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
         Label summary = new () { X = 1, Y = 0, Width = Dim.Fill (1), Height = 1, Text = $"{record.Summary} · {record.FinishedAtUtc.ToLocalTime ():g}" };
         summary.TextFormatter.WordWrap = false;
         Label hint = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = 1, Text = "Enter Details · Retry package = highlighted row" };
-        ListView rows = new PackageListView () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (5), SchemeName = Theme.SurfaceSchemeName };
-        rows.SetSource (new ObservableCollection<string> (record.Items.Select (x =>
-            $"{x.Status,-9} {x.Name} [{x.Id}] ({x.Source})  —  {x.Reason}").ToList ()));
+        PackageListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (5), SchemeName = Theme.SurfaceSchemeName };
+        rows.SetSummaryRows (record.Items.Select (x => (x.Status, x.Name, x.Reason)));
         rows.SelectedItem = record.Items.Count > 0 ? 0 : null;
         Button diagnostics = new () { X = 1, Y = Pos.AnchorEnd (3), Text = "_Details", Enabled = record.Items.Count > 0 };
         RunItem [] unfinished = record.Items.Where (x => x.CanRetry).ToArray ();

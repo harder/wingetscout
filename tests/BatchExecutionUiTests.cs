@@ -250,7 +250,7 @@ public sealed class BatchExecutionUiTests
     public async Task MockUpgradesUpdateInventoryWithoutChangingOtherSessions ()
     {
         MockBackend backend = new ();
-        Package before = Assert.Single (await backend.ListUpgradesAsync (null, CancellationToken.None), p => p.Id == "Git.Git");
+        Package before = Assert.Single (await backend.ListUpgradesAsync (null, CancellationToken.None), p => p.Id == "7zip.7zip");
         OpResult result = await backend.UpgradeAsync (before.Id, null, CancellationToken.None, before.Source);
         Assert.True (result.Success);
         Assert.DoesNotContain (await backend.ListUpgradesAsync (null, CancellationToken.None), p => p.Id == before.Id);

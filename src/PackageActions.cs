@@ -58,7 +58,7 @@ public static class PackageActions
                 if (!string.IsNullOrWhiteSpace (detail.ReleaseNotesUrl)) actions.Add (new ("changelog", "Open release notes"));
             }
         }
-        if (hasSelection) actions.Add (new ("clear-selection", $"Clear selection ({selectedCount} packages)"));
+        if (hasSelection) actions.Add (new ("clear-selection", $"Clear selection ({selectedCount} {(selectedCount == 1 ? "package" : "packages")})"));
         actions.Add (new ("history", "Recent runs…"));
         actions.Add (new ("diagnostics", "Backend and source diagnostics…"));
         return actions;
