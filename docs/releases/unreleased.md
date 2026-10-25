@@ -1,5 +1,9 @@
 # Unreleased
 
+- Update Terminal.Gui to `2.5.1-develop.171`. Its only upstream change improves
+  test assertions; runtime source and transitive dependencies are unchanged.
+  See the [dependency review](../terminal-gui-update-review.md#october-24-follow-up-develop171)
+  for source comparison and compatibility checks.
 - Reclaim unused Source-column width for package names. Keep versions visible
   across the supported terminal sizes without expanding the Source column.
 - Put descriptions before secondary metadata and use compact, clickable link

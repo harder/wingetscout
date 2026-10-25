@@ -1,5 +1,63 @@
 # Terminal.Gui update review
 
+## October 24 follow-up: develop.171
+
+For [issue #64](https://github.com/harder/wingetscout/issues/64), update from
+`2.5.1-develop.170` to `2.5.1-develop.171`. The complete NuGet registration
+index, including its paged entries, identifies `.171` as the newest listed
+develop publication at review time (October 22, 2026, 19:47 UTC). No open
+Dependabot update PR was present. Do not choose the numerically higher
+`2.6.0-develop.61` over this newer publication.
+
+Package nuspec repository commits establish the exact comparison:
+
+- `.170`: `3f65bcb5cd5b4d080d3f0e5201d95f347384c371`.
+- `.171`: `edaceba039833eaa4652014e77ee391182ea74f9`.
+
+The former is an ancestor of the latter. The [complete comparison](https://github.com/tui-cs/Terminal.Gui/compare/3f65bcb5cd5b4d080d3f0e5201d95f347384c371...edaceba039833eaa4652014e77ee391182ea74f9)
+contains exactly one commit, [upstream PR #5741](https://github.com/tui-cs/Terminal.Gui/pull/5741).
+It changes only `Tests/UnitTests.Legacy/DriverAssert.cs` and
+`Tests/UnitTestsParallelizable/Views/TreeViewTests.cs`. The assertion helper
+now pads each expected screen row to the detected frame width, measuring
+display columns, and the TreeView tests drop their local padding helper.
+
+**Adoption decision:** there are no new runtime features, fixes, or APIs in
+this package's source range. The entire `Terminal.Gui` source tree has the
+same Git tree ID, `35fed84ec6181832d0c47bf07959096d323f2736`, at both commits.
+Startup, UI-thread dispatch, callbacks, timers, shutdown, keyboard input,
+layout, progress handling, and Markdown rendering therefore require no
+Scout migration. Upstream's test helper is not a shipped application API;
+do not add it to Scout or loosen Scout's rendered alignment assertions.
+The earlier adoption decisions below remain applicable, including keeping
+inline output and global native selection out of the fullscreen UX.
+
+Regenerated portable, Identity, and test lockfiles change only Terminal.Gui's
+requested/resolved version and content hash. The transitive graph is unchanged;
+the WinGet COM pair remains `1.29.380`. There is no new runtime behavior to
+justify an additional regression test; existing rendered compatibility and
+UX regression suites exercise the package in Scout.
+
+Validation on Windows ARM64:
+
+- All 749 .NET tests passed, with no failures or skips, including rendered
+  Details links, empty states, selection markers, narrow layouts, modal
+  workflows, dispatch, and cancellation coverage.
+- Portable Native AOT publishes passed for `win-arm64` and `win-x64`, both
+  with the in-process COM companion DLLs. Both published executables passed
+  graceful `--smoke` with exit 0 and empty stderr (x64 via Windows emulation).
+- ARM64 `--comdiag` passed on main and threadpool MTA threads, each reporting
+  three catalogs. No package-changing operations were performed.
+- All four dependency-monitor tests passed. The site build and whitespace
+  validation passed.
+- A dedicated `.171` mock process was launched in Windows Terminal. The
+  computer-use tool exposed no targetable terminal window, so no GUI input
+  was sent; the dedicated process was cleaned up through the shell. Native
+  keyboard/mouse/resize behavior, conhost, and installed MSIX activation
+  remain unverified. In-process rendering tests and mock smoke do not
+  establish those results. Identity AOT publishes were not repeated.
+
+## October 21 review: develop.170
+
 Reviewed October 21, 2026. This is an unreleased source update; published Scout
 1.1.0 downloads have not changed.
 
