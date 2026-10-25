@@ -4,10 +4,10 @@ For installation and a quick start, see the [README](../README.md#install).
 Press `?` in Scout for the current in-app shortcut reference. This guide
 explains the main workflows and where their results are stored.
 
-This guide describes v1.1.0. See the [release notes](releases/1.1.0.md) for
-the batch, retry, and diagnostic improvements added since v1.0.3.
+This guide describes v1.1.1. See the [release notes](releases/1.1.1.md) for
+the compact layouts, simpler Details, and rendering improvements.
 
-In the unreleased source build, a one-cell `✓` in the left marker column identifies
+A one-cell `✓` in the left marker column identifies
 marked Search and Upgrades packages; `◆` identifies the current marked row.
 The current unmarked row uses `●`, and package
 names no longer reserve selection padding. Package Details also omits the Product
@@ -16,8 +16,7 @@ wraps long IDs. Help and review dialogs also use the available width more
 effectively. The action menu's **More links…** entry provides keyboard access to
 support, privacy, purchase, and documentation links. Review/result rows include
 source or ID only when needed to distinguish packages with the same name.
-These changes are not in the published 1.1.0 downloads. See the
-[UX audit](ux-audit-2026-10-24.md) for the checked surfaces and limits.
+See the [UX audit](ux-audit-2026-10-24.md) for the checked surfaces and limits.
 
 ## Navigate and find packages
 
