@@ -24,6 +24,9 @@ package-state queries are included in the fixture. Names and descriptions are
 public package metadata. Mock operations remain simulated and session-local.
 The JSON is embedded and read through a source-generated serialization context
 so the same fixture works in Native AOT builds and on non-Windows hosts.
+Each mock backend deserializes its own snapshot; mutable metadata is not shared
+across sessions. The version picker sorts the observed catalog/installed values
+newest first. It does not invent historical releases for packages with one value.
 
 To refresh it, take new read-only exports and upgrade listings, choose a varied
 set of package IDs, and collect their `show` metadata. Record the observation

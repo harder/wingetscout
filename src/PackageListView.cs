@@ -5,12 +5,30 @@ internal sealed class PackageListView : ListView
 {
     private (string Status, string Name, string Reason) []? _summaries;
     private int _summaryWidth = -1;
+    private int _statusWidth;
 
     public PackageListView () => ViewportChanged += (_, _) => RefreshSummaries ();
 
-    internal void SetSummaryRows (IEnumerable<(string Status, string Name, string Reason)> rows)
+    internal void SetSummaryRows (IEnumerable<(string Status, string Name, string Reason, string Id, string Source)> rows)
     {
-        _summaries = [.. rows];
+        var items = rows.ToArray ();
+        // Identity is useful when names collide, rather than on every review row.
+        var collisions = items.GroupBy (row => row.Name, StringComparer.OrdinalIgnoreCase)
+            .Where (group => group.Select (row => $"{row.Source}\u001f{row.Id}").Distinct (StringComparer.OrdinalIgnoreCase).Skip (1).Any ())
+            .ToDictionary (group => group.Key,
+                group => group.GroupBy (row => row.Source, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary (source => source.Key, source => source.Select (row => row.Id).Distinct (StringComparer.OrdinalIgnoreCase).Count (),
+                        StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+        string DisplayName ((string Status, string Name, string Reason, string Id, string Source) row)
+        {
+            if (!collisions.TryGetValue (row.Name, out var sources)) return row.Name;
+            string identity = sources [row.Source] > 1
+                ? sources.Count > 1 ? $"{row.Source} · {row.Id}" : row.Id : row.Source;
+            return $"[{identity}] {row.Name}";
+        }
+        _summaries = items.Select (row => (row.Status, DisplayName (row), row.Reason)).ToArray ();
+        _statusWidth = items.Select (row => row.Status.GetColumns ()).DefaultIfEmpty ().Max ();
         _summaryWidth = -1;
         RefreshSummaries ();
     }
@@ -21,34 +39,18 @@ internal sealed class PackageListView : ListView
         if (_summaries is null || width == _summaryWidth) return;
         _summaryWidth = width;
         int? selected = SelectedItem;
-        SetSource (new ObservableCollection<string> (_summaries.Select (row => FormatSummary (row, width))));
+        SetSource (new ObservableCollection<string> (_summaries.Select (row => FormatSummary (row, width, _statusWidth))));
         SelectedItem = _summaries.Length == 0 ? null : Math.Clamp (selected ?? 0, 0, _summaries.Length - 1);
     }
 
-    private static string FormatSummary ((string Status, string Name, string Reason) row, int width)
+    private static string FormatSummary ((string Status, string Name, string Reason) row, int width, int statusWidth)
     {
-        int available = Math.Max (0, width - row.Status.GetColumns () - 4);
+        int available = Math.Max (0, width - statusWidth - 4);
         int nameMinimum = Math.Min (12, row.Name.GetColumns ());
         int reasonWidth = Math.Min (row.Reason.GetColumns (), Math.Max (0, available - nameMinimum));
-        string name = Clip (row.Name, available - reasonWidth);
-        return Clip ($"{row.Status} {name} — {row.Reason}", width);
-    }
-
-    private static string Clip (string value, int width)
-    {
-        if (value.GetColumns () <= width) return value;
-        if (width <= 0) return string.Empty;
-        StringBuilder result = new ();
-        int used = 0;
-        System.Globalization.TextElementEnumerator elements = System.Globalization.StringInfo.GetTextElementEnumerator (value);
-        while (elements.MoveNext ())
-        {
-            string element = elements.GetTextElement ();
-            if (used + element.GetColumns () >= width) break;
-            result.Append (element);
-            used += element.GetColumns ();
-        }
-        return result + "…";
+        string name = UiText.Ellipsize (row.Name, available - reasonWidth);
+        string status = row.Status + new string (' ', statusWidth - row.Status.GetColumns ());
+        return UiText.Ellipsize ($"{status} {name} — {row.Reason}", width);
     }
 
     protected override bool OnKeyDownNotHandled (Key key)

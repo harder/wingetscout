@@ -15,6 +15,13 @@
   [fixture provenance](../../src/MockData/README.md).
 - Use a single-cell check in the existing marker column for batch selections in
   Search and Upgrades, giving the four reserved name cells back to package names.
+- Keep empty-list messages readable after filtering a populated list. Distinguish
+  the current marked row with `◆`, and keep Source hidden in narrow Upgrades panes
+  until version columns have enough space.
+- Offer secondary package links through **More links…** in the keyboard action
+  menu. Preserve literal link labels, original destinations, and backend errors.
+  Disambiguate duplicate names in review/results only when needed and align their
+  status labels. See the [PR review follow-up](../pr65-review-follow-up.md).
 - Remove the Product code list from Package Details. These installer identities
   support package detection and maintenance rather than everyday package browsing.
   See the [interface review](../product-code-ui-review.md) for the comparison.

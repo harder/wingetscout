@@ -569,7 +569,7 @@ public sealed class DetailPanel : FrameView
                 // whole token across rows instead of silently clipping its tail at draw time.
                 while (tokenWidth > maxWidth)
                 {
-                    string part = TrimToWidth (token, maxWidth);
+                    string part = UiText.TakeColumns (token, maxWidth);
                     if (part.Length == 0) break;
                     current.Add (new (part, span.Attr));
                     wrapped.Add (current);
@@ -605,7 +605,7 @@ public sealed class DetailPanel : FrameView
 
             if (x + width > x0 + maxWidth)
             {
-                text = TrimToWidth (text, Math.Max (0, x0 + maxWidth - x));
+                text = UiText.TakeColumns (text, Math.Max (0, x0 + maxWidth - x));
                 width = text.GetColumns ();
             }
 
@@ -619,34 +619,6 @@ public sealed class DetailPanel : FrameView
             AddStr (text);
             x += width;
         }
-    }
-
-    private static string TrimToWidth (string text, int maxWidth)
-    {
-        if (maxWidth <= 0)
-        {
-            return string.Empty;
-        }
-
-        StringBuilder builder = new ();
-        int width = 0;
-
-        System.Globalization.TextElementEnumerator elements = System.Globalization.StringInfo.GetTextElementEnumerator (text);
-        while (elements.MoveNext ())
-        {
-            string element = elements.GetTextElement ();
-            int runeWidth = element.GetColumns ();
-
-            if (width + runeWidth > maxWidth)
-            {
-                break;
-            }
-
-            builder.Append (element);
-            width += runeWidth;
-        }
-
-        return builder.ToString ();
     }
 
     private enum ValueScheme
@@ -677,10 +649,8 @@ public sealed class DetailPanel : FrameView
     {
         string visibleText = $"{label} ↗";
         AddSingle (visibleText, Theme.Info, TextStyle.Underline);
-        string linkLabel = visibleText.Replace ("\\", "\\\\").Replace ("[", "\\[").Replace ("]", "\\]")
-                                      .Replace ("*", "\\*").Replace ("_", "\\_").Replace ("`", "\\`")
-                                      .Replace ("<", "\\<").Replace (">", "\\>");
-        string destination = url.Replace ("<", "%3C").Replace (">", "%3E");
+        string linkLabel = UiText.MarkdownLiteral (visibleText);
+        string destination = UiText.MarkdownDestination (url);
 
         Markdown markdown = new ()
         {
@@ -697,7 +667,7 @@ public sealed class DetailPanel : FrameView
         markdown.LinkClicked += (_, e) =>
                                 {
                                     e.Handled = true;
-                                    LinkActivated?.Invoke (this, e.Url);
+                                    LinkActivated?.Invoke (this, url);
                                 };
 
         Add (markdown);

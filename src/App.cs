@@ -920,10 +920,14 @@ public sealed partial class App : Window
             // Render a single message row explaining *why* the list is empty, instead of a bare
             // headered table. The message is contextual: "All packages are up to date!" vs. a
             // filter/pin-specific note.
+            _packageTable.Style.ColumnStyles.Clear ();
+            _packageTable.Style.ExpandLastColumn = true;
             _packageTable.Table = new EnumerableTableSource<string> ([EmptyStateMessage (_state)], new ()
             {
                 { " ", message => message }
             });
+            _packageTable.RefreshContentSize ();
+            _packageTable.Update ();
 
             RefreshStatusBar ();
             UpdateScoutVisibility ();
@@ -976,12 +980,7 @@ public sealed partial class App : Window
         }
 
         EnumerableTableSource<Package> raw = new (_state.Filtered, cols);
-        MarkedTableSource marked = new (raw, p => _state.Mode switch
-        {
-            AppMode.Search => _searchSelected.ContainsKey (BatchPlanning.Key (p)),
-            AppMode.Upgrades => _state.BatchSelected.Contains (BatchPlanning.Key (p)),
-            _ => false
-        });
+        MarkedTableSource marked = new (raw, p => CurrentSelectionKeys ().Contains (BatchPlanning.Key (p)));
         _packageTable.Table = marked;
 
         ApplyColumnStyles (marked);
@@ -1027,6 +1026,7 @@ public sealed partial class App : Window
     /// </summary>
     private void ApplyColumnStyles (MarkedTableSource marked)
     {
+        _packageTable.Style.ExpandLastColumn = false;
         _packageTable.Style.ColumnStyles.Clear ();
         _packageTable.Style.HeaderScheme = new Scheme (_packageTable.GetScheme ())
         {
@@ -1117,7 +1117,8 @@ public sealed partial class App : Window
         int fullMinimum = 1 + dataCols + 1 + sourceW + tableGutter + 21 + idMin + 9 + (hasAvailable ? 14 : 0);
         bool hideId = avail < fullMinimum;
         // Reserve only the actual one-cell rendering gutter; give spare width to names.
-        int compactWithSourceMinimum = 1 + 5 + sourceW + tableGutter + 12 + 9 + 9;
+        int compactWithSourceMinimum = 1 + 5 + sourceW + tableGutter + 14 + verW
+                                       + HeaderWithSort ("Available", SortField.AvailableVersion).GetColumns ();
         bool hideSource = hasAvailable && avail < compactWithSourceMinimum;
         int nameMin = hideId ? 12 : 14;
         int availW = hideId ? HeaderWithSort ("Available", SortField.AvailableVersion).GetColumns () : 14;
@@ -3337,8 +3338,9 @@ public sealed partial class App : Window
         public int CursorRow { get; set; } = -1;
 
         public object this [int row, int col]
+            // Use a plain text glyph so the current mark cannot expand into an emoji.
             => col == 0
-                   ? (_isSelected (_inner.GetObjectOnRow (row)) ? "✓" : row == CursorRow ? "●" : " ")
+                   ? (_isSelected (_inner.GetObjectOnRow (row)) ? row == CursorRow ? "◆" : "✓" : row == CursorRow ? "●" : " ")
                    : _inner [row, col - 1];
 
         public int Rows => _inner.Rows;

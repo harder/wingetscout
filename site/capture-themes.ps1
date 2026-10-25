@@ -12,7 +12,7 @@ $captures = @(
   @{ Name = 'scout-sage-search'; Theme = 'sage'; Keys = 'wait:500,CursorLeft,`git`,Enter,wait:1200'; Contains = 'Git.Git' },
   @{ Name = 'scout-amber-installed'; Theme = 'amber'; Keys = 'wait:1200'; Contains = 'Git.Git' },
   @{ Name = 'scout-moss-upgrades'; Theme = 'moss'; Keys = 'wait:500,CursorRight,wait:1100,Space,CursorDown,Space,wait:600'; Contains = '2 selected' },
-  @{ Name = 'scout-rose-search'; Theme = 'rose'; Keys = 'wait:500,CursorLeft,`visual`,Enter,wait:1100'; Contains = 'Visual Studio Code' }
+  @{ Name = 'scout-rose-search'; Theme = 'rose'; Keys = 'wait:500,CursorLeft,`visual`,Enter,wait:1100'; Contains = 'Microsoft.VisualStudioCode' }
 )
 
 # Some automation hosts set NO_COLOR and TERM=dumb. Those settings collapse all

@@ -6,9 +6,10 @@ namespace WinGetScout;
 /// </summary>
 public sealed class MockBackend : IBackend
 {
-    private static IEnumerable<PackageDetail> InstalledTemplates =>
-        MockCatalog.Packages.Where (package => !string.IsNullOrEmpty (package.InstalledVersion));
-    private static IReadOnlyList<PackageDetail> SearchTemplates => MockCatalog.Packages;
+    private readonly PackageDetail [] _catalog = MockCatalog.Load ();
+    private IEnumerable<PackageDetail> InstalledTemplates =>
+        _catalog.Where (package => !string.IsNullOrEmpty (package.InstalledVersion));
+    private IReadOnlyList<PackageDetail> SearchTemplates => _catalog;
 
     private readonly object _pinsGate = new ();
     private readonly Dictionary<string, PinState> _pins = new (StringComparer.OrdinalIgnoreCase);
@@ -102,11 +103,12 @@ public sealed class MockBackend : IBackend
                                                 && (source is null || x.Source.Equals (source, StringComparison.OrdinalIgnoreCase)));
         string baseV = p?.Version ?? "1.0.0";
 
-        // A small, distinct, newest-first list so the version picker is exercisable on any host.
+        // Use only observed catalog/installed versions, newest first; do not invent history.
         IReadOnlyList<string> versions = new [] { baseV, p?.InstalledVersion }
                                          .OfType<string> ()
                                          .Where (version => !version.StartsWith ('<'))
                                          .Distinct (StringComparer.OrdinalIgnoreCase)
+                                         .OrderByDescending (version => version, Comparer<string>.Create (CliBackend.CompareVersionsLike))
                                          .ToList ();
 
         return Task.FromResult (versions);

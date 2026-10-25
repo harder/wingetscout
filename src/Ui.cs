@@ -695,13 +695,13 @@ public sealed class HelpDialog : Runnable
         // to the CLI. Empty until resolved → omit the line entirely.
         string header = string.IsNullOrEmpty (backendDescription)
                             ? string.Empty
-                            : $"Backend: {backendDescription}\n\n";
+                            : $"Backend: {UiText.MarkdownLiteral (backendDescription)}\n\n";
 
         // If a COM backend was requested but activation failed, the app silently fell back to CLI
         // (the stderr note is overdrawn by the TUI). Surface the reason here so it's discoverable.
         if (!string.IsNullOrEmpty (comFallbackReason))
         {
-            header += $"COM unavailable: {comFallbackReason} — using CLI.\n\n";
+            header += $"COM unavailable: {UiText.MarkdownLiteral (comFallbackReason)} — using CLI.\n\n";
         }
 
         Markdown content = new ()
@@ -768,6 +768,7 @@ public sealed class HelpDialog : Runnable
         - **o / c** — Open the homepage or release notes.
 
         ## Marked packages
+        - **✓ / ◆** — Marked package / current marked row.
         - **Space** — Toggle the row's mark in Search or Upgrades.
         - **a** — Toggle marks on visible rows; hidden marks are kept.
         - **B / U** — Review marked installs or upgrades before approving.

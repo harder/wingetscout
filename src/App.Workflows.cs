@@ -387,9 +387,11 @@ public sealed partial class App
         return true;
     }
 
-    private ListCounts CurrentCounts () => ListCounts.Capture (_state.Filtered, _state.Packages.Count,
+    private IReadOnlyCollection<string> CurrentSelectionKeys () =>
         _state.Mode == AppMode.Search ? _searchSelected.Keys
-        : _state.Mode == AppMode.Upgrades ? _state.BatchSelected : []);
+        : _state.Mode == AppMode.Upgrades ? _state.BatchSelected : [];
+
+    private ListCounts CurrentCounts () => ListCounts.Capture (_state.Filtered, _state.Packages.Count, CurrentSelectionKeys ());
 
     private void ShowPackageActions ()
     {
@@ -398,6 +400,10 @@ public sealed partial class App
         PackageDetail? detail = _state.CurrentDetail;
         string? homepage = detail?.Homepage;
         string? releaseNotes = detail?.ReleaseNotesUrl;
+        IReadOnlyList<DocLink> links = detail is not null && package is not null
+            && detail.Id.Equals (package.Id, StringComparison.OrdinalIgnoreCase)
+            && detail.Source.Equals (package.Source, StringComparison.OrdinalIgnoreCase)
+                ? PackageActions.SupplementalLinks (detail) : [];
         ListCounts counts = CurrentCounts ();
         IReadOnlyList<PackageAction> actions = PackageActions.For (_state.Mode, package, _state.PinDataFresh,
             _state.Backend.CanVerify, _state.Backend.CanRepair, counts.Selected, detail);
@@ -432,9 +438,26 @@ public sealed partial class App
                 break;
             case "homepage": OpenUrl (homepage); break;
             case "changelog": OpenUrl (releaseNotes); break;
+            case "links": ShowSupplementalLinks (links); break;
             case "history": ShowRunHistory (); break;
             case "diagnostics": ShowBackendDiagnostics (); break;
         }
+    }
+
+    private void ShowSupplementalLinks (IReadOnlyList<DocLink> links)
+    {
+        if (App is null || links.Count == 0) return;
+        string? selected = null;
+        bool shown = TryShowReservedModal (_foreground, () =>
+        {
+            PackageAction[] choices = links.Select ((link, index) => new PackageAction (index.ToString (),
+                $"{link.Label} · {new Uri (link.Url).Host}")).ToArray ();
+            using PackageActionDialog dialog = new ("Choose a package link to open", choices) { Title = " Package links " };
+            App.Run (dialog);
+            selected = dialog.Result;
+        });
+        if (shown && int.TryParse (selected, out int index) && index >= 0 && index < links.Count)
+            OpenUrl (links [index].Url);
     }
 
     private void ManageScheduledChecks ()

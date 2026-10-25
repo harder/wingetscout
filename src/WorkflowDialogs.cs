@@ -24,7 +24,7 @@ public sealed class BatchPlanDialog : Runnable<bool>
             ? "Enter Details · Tab actions · Esc Cancel"
             : "Nothing ready · Enter Details · Esc Cancel" };
         PackageListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (3), SchemeName = Theme.SurfaceSchemeName };
-        rows.SetSummaryRows (plan.Items.Select (x => (x.CanRun ? "READY" : "SKIP", x.Package.Name, x.Reason)));
+        rows.SetSummaryRows (plan.Items.Select (x => (x.CanRun ? "READY" : "SKIP", x.Package.Name, x.Reason, x.Package.Id, x.Package.Source)));
         rows.SelectedItem = plan.Items.Count > 0 ? 0 : null;
         Button details = new () { X = 1, Y = Pos.AnchorEnd (1), Text = "_Details", Enabled = plan.Items.Count > 0 };
         void Details ()
@@ -71,7 +71,7 @@ public sealed class RunRecordDialog : Runnable<IReadOnlyList<RunItem>?>
         summary.TextFormatter.WordWrap = false;
         Label hint = new () { X = 1, Y = 1, Width = Dim.Fill (1), Height = 1, Text = "Enter Details · Retry package = highlighted row" };
         PackageListView rows = new () { X = 1, Y = 2, Width = Dim.Fill (1), Height = Dim.Fill (5), SchemeName = Theme.SurfaceSchemeName };
-        rows.SetSummaryRows (record.Items.Select (x => (x.Status, x.Name, x.Reason)));
+        rows.SetSummaryRows (record.Items.Select (x => (x.Status, x.Name, x.Reason, x.Id, x.Source)));
         rows.SelectedItem = record.Items.Count > 0 ? 0 : null;
         Button diagnostics = new () { X = 1, Y = Pos.AnchorEnd (3), Text = "_Details", Enabled = record.Items.Count > 0 };
         RunItem [] unfinished = record.Items.Where (x => x.CanRetry).ToArray ();

@@ -406,7 +406,7 @@ public class AppBehaviorTests
         InvokePrivate (app, "ToggleBatchSelect", state.Packages [0]);
 
         Assert.Same (source, table.Table);
-        Assert.Equal ("✓", source [0, 0]);
+        Assert.Equal ("◆", source [0, 0]);
         Assert.Equal ("First", source [0, 1]);
         Assert.Contains ("1 selected", listFrame.Title);
         Assert.Same (detailRequest, GetPrivateField<CancellationTokenSource> (app, "_detailCts"));

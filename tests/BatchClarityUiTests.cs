@@ -19,18 +19,18 @@ public sealed class BatchClarityUiTests
 
         ui.Press (new Key (' '));
         Assert.Same (source, ui.Table.Table);
-        Assert.Equal ("✓", source [0, 0]);
+        Assert.Equal ("◆", source [0, 0]);
         ui.Press (KeyCode.CursorDown);
         Assert.Equal ("✓", source [0, 0]);
         Assert.Equal ("●", source [1, 0]);
         ui.Press (new Key (' '));
-        Assert.Equal ("✓", source [1, 0]);
+        Assert.Equal ("◆", source [1, 0]);
         Assert.Equal ("Package 001", source [1, 1]);
 
         ui.State.LocalFilter = "001";
         ui.State.ApplyFilter ();
         ui.Invoke ("RefreshTable");
-        Assert.Equal ("✓", ui.Table.Table! [0, 0]);
+        Assert.Equal ("◆", ui.Table.Table! [0, 0]);
         Assert.Contains ("1 hidden", ui.Get<FrameView> ("_listFrame").Title);
         ui.Window.Width = 80;
         ui.Application.LayoutAndDraw ();
@@ -44,11 +44,12 @@ public sealed class BatchClarityUiTests
         ui.State.LocalFilter = string.Empty;
         ui.State.ApplyFilter ();
         ui.Invoke ("RefreshTable");
-        Assert.Equal ("✓", ui.Table.Table! [0, 0]);
+        Assert.Contains (Assert.IsType<string> (ui.Table.Table! [0, 0]), new [] { "✓", "◆" });
         ui.Press (KeyCode.Esc);
-        Assert.DoesNotContain (Enumerable.Range (0, 3), row => Equals ("✓", ui.Table.Table [row, 0]));
+        Assert.DoesNotContain (Enumerable.Range (0, 3), row => ui.Table.Table [row, 0] is "✓" or "◆");
         ui.Press (new Key ('a'));
-        Assert.All (Enumerable.Range (0, 3), row => Assert.Equal ("✓", ui.Table.Table [row, 0]));
+        Assert.All (Enumerable.Range (0, 3), row => Assert.Contains (Assert.IsType<string> (ui.Table.Table [row, 0]), new [] { "✓", "◆" }));
+        Assert.Single (Enumerable.Range (0, 3), row => Equals ("◆", ui.Table.Table [row, 0]));
         ui.Window.Width = 140;
         ui.Application.LayoutAndDraw ();
         Assert.All (Enumerable.Range (0, 3), row => Assert.Equal ($"Package {row:D3}", ui.Table.Table [row, 1]));
