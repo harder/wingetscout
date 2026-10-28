@@ -43,16 +43,16 @@ $installers = foreach ($arch in @('x64', 'arm64')) {
 }
 
 $versionManifest = @"
-# yaml-language-server: `$schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
+# yaml-language-server: `$schema=https://aka.ms/winget-manifest.version.1.28.0.schema.json
 PackageIdentifier: $packageId
 PackageVersion: $Version
 DefaultLocale: en-US
 ManifestType: version
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0
 "@
 
 $localeManifest = @"
-# yaml-language-server: `$schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+# yaml-language-server: `$schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
 PackageIdentifier: $packageId
 PackageVersion: $Version
 PackageLocale: en-US
@@ -60,6 +60,7 @@ Publisher: Kevin Harder
 PublisherUrl: https://github.com/harder
 PackageName: Scout for WinGet
 PackageUrl: https://github.com/harder/wingetscout
+PrivacyUrl: https://github.com/harder/wingetscout/blob/main/PRIVACY.md
 License: MIT
 LicenseUrl: https://github.com/harder/wingetscout/blob/v$Version/LICENSE
 ShortDescription: Terminal app for finding, installing, and updating Windows packages
@@ -70,11 +71,11 @@ Tags:
 - package-manager
 - terminal
 ManifestType: defaultLocale
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0
 "@
 
 $installerManifest = @"
-# yaml-language-server: `$schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+# yaml-language-server: `$schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
 PackageIdentifier: $packageId
 PackageVersion: $Version
 InstallerType: zip
@@ -95,7 +96,7 @@ foreach ($item in $installers) {
   InstallerSha256: $($item.Hash)
 "@
 }
-$installerManifest += "`nManifestType: installer`nManifestVersion: 1.12.0`n"
+$installerManifest += "`nManifestType: installer`nManifestVersion: 1.28.0`n"
 
 Set-Content -LiteralPath (Join-Path $destination "$packageId.yaml") -Value $versionManifest -Encoding utf8
 Set-Content -LiteralPath (Join-Path $destination "$packageId.locale.en-US.yaml") -Value $localeManifest -Encoding utf8
