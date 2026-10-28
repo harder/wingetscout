@@ -6,7 +6,7 @@
 [![Windows](https://img.shields.io/badge/Windows-x64%20%7C%20arm64-65546A?style=flat)](https://www.microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
 
-[Website](https://wingetscout.com/) · [Documentation](https://wingetscout.com/docs.html) · [Releases](https://github.com/harder/wingetscout/releases)
+[Website](https://wingetscout.com/) · [Documentation](https://wingetscout.com/docs.html) · [Releases](https://github.com/harder/wingetscout/releases) · [Privacy](PRIVACY.md)
 
 [Guides](https://github.com/harder/wingetscout/blob/main/docs/index.md) · [Usage](https://github.com/harder/wingetscout/blob/main/docs/usage.md) · [Architecture](https://github.com/harder/wingetscout/blob/main/docs/architecture.md)
 
