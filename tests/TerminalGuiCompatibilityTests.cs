@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Drawing;
 using Terminal.Gui.App;
 
@@ -6,6 +7,177 @@ namespace WinGetScout.Tests;
 [Collection ("Terminal UI")]
 public sealed class TerminalGuiCompatibilityTests
 {
+    [Theory]
+    [InlineData ("plan")]
+    [InlineData ("results")]
+    public void ScrolledSummaryDialogsKeepSelectionVisibleWhenRowsAreReformatted (string kind)
+    {
+        string? previousDriverIO = Environment.GetEnvironmentVariable ("DisableRealDriverIO");
+        Environment.SetEnvironmentVariable ("DisableRealDriverIO", "1");
+        try
+        {
+            using IApplication application = Application.Create ().Init (DriverRegistry.Names.ANSI);
+            application.Driver!.SetScreenSize (100, 30);
+            Package[] packages = Enumerable.Range (0, 60)
+                .Select (i => new Package { Id = $"Example.{i}", Name = $"Pkg{i:D3}", Source = "winget" }).ToArray ();
+            using Runnable dialog = kind == "plan"
+                ? new BatchPlanDialog (new ("Install", packages.Select (p => new BatchPlanItem (p, true, "Ready")).ToList ()))
+                : new RunRecordDialog (new (DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Install",
+                    packages.Select (p => new RunItem (p.Id, p.Name, p.Source, "Succeeded", "Done")).ToList ()));
+            dialog.Width = 80;
+            dialog.Height = 20;
+            SessionToken session = application.Begin (dialog)!;
+            try
+            {
+                ListView list = Assert.Single (dialog.SubViews.OfType<ListView> ());
+                list.SetFocus ();
+                application.Keyboard.RaiseKeyDownEvent (new (KeyCode.End));
+                application.LayoutAndDraw ();
+                Assert.Equal (59, list.SelectedItem);
+                Assert.True (list.Viewport.Y > 0);
+
+                // Summary rows replace their source when width changes. Upstream now
+                // resets that source's viewport, so exercise Scout's selection restore.
+                dialog.Width = 54;
+                dialog.Height = 12;
+                application.LayoutAndDraw ();
+                Assert.Equal (59, list.SelectedItem);
+                Assert.InRange (59, list.Viewport.Y, list.Viewport.Bottom - 1);
+                Assert.Contains ("Pkg059", application.Driver.ToString ());
+                Assert.True (list.HasFocus);
+            }
+            finally { application.End (session); }
+        }
+        finally { Environment.SetEnvironmentVariable ("DisableRealDriverIO", previousDriverIO); }
+    }
+
+    [Fact]
+    public void HiddenPlanApprovalCannotBeTriggeredByItsLocalHotKey ()
+    {
+        using IApplication application = Application.Create ();
+        using BatchPlanDialog dialog = new (new ("Install",
+            [new (new () { Id = "Example.Package", Name = "Example package" }, true, "Ready")]))
+        { Width = 80, Height = 20 };
+        Button install = Assert.Single (dialog.SubViews.OfType<Button> (), button => button.Text.Contains ("Install"));
+        SessionToken session = application.Begin (dialog)!;
+        try
+        {
+            // The shared hotkey handler now permits hidden application-scoped shortcuts.
+            // Scout's local approval button must still require visibility.
+            install.Visible = false;
+            application.LayoutAndDraw ();
+            application.Keyboard.RaiseKeyDownEvent (new (KeyCode.I | KeyCode.AltMask));
+            Assert.False (dialog.Result);
+
+            install.Visible = true;
+            application.LayoutAndDraw ();
+            application.Keyboard.RaiseKeyDownEvent (new (KeyCode.I | KeyCode.AltMask));
+            Assert.True (dialog.Result);
+        }
+        finally { application.End (session); }
+    }
+
+    [Theory]
+    [InlineData ("detach")]
+    [InlineData ("clear")]
+    [InlineData ("replace")]
+    [InlineData ("shrink")]
+    public void PackageDialogListRecoversAfterSourceIsClearedOrShortened (string change)
+    {
+        string? previousDriverIO = Environment.GetEnvironmentVariable ("DisableRealDriverIO");
+        Environment.SetEnvironmentVariable ("DisableRealDriverIO", "1");
+        try
+        {
+            using IApplication application = Application.Create ().Init (DriverRegistry.Names.ANSI);
+            application.Driver!.SetScreenSize (100, 30);
+            ObservableCollection<string> versions = new (Enumerable.Range (0, 60).Select (i => $"{i}.0"));
+            using VersionPickerDialog dialog = new ("Example", versions) { Width = 80, Height = 20 };
+            ListView list = Assert.Single (dialog.SubViews.OfType<ListView> ());
+            list.SetSource (versions);
+            SessionToken session = application.Begin (dialog)!;
+            try
+            {
+                list.SetFocus ();
+                application.Keyboard.RaiseKeyDownEvent (new (KeyCode.End));
+                application.LayoutAndDraw ();
+                Assert.Equal (59, list.SelectedItem);
+                Assert.True (list.Viewport.Y > 0);
+
+                switch (change)
+                {
+                    case "detach": list.Source = null; break;
+                    case "clear": list.SetSource<string> (null); break;
+                    case "replace": list.SetSource (new ObservableCollection<string> (["Replacement"])); break;
+                    case "shrink":
+                        while (versions.Count > 3) versions.RemoveAt (versions.Count - 1);
+                        Assert.Equal (2, list.SelectedItem);
+                        versions.Clear ();
+                        break;
+                }
+
+                application.LayoutAndDraw ();
+                Assert.Null (list.SelectedItem);
+                Assert.Equal (0, list.Viewport.Y);
+                if (change == "detach") Assert.Null (list.Source);
+                else Assert.Equal (change == "replace" ? 1 : 0, list.Source!.Count);
+
+                // Reusing Scout's list must show the new rows and preserve its keyboard
+                // boundary behavior after a previously scrolled source disappears.
+                list.SetSource (new ObservableCollection<string> (["Recovered version"]));
+                list.SelectedItem = 0;
+                list.SetFocus ();
+                application.Keyboard.RaiseKeyDownEvent (new (KeyCode.CursorDown));
+                application.LayoutAndDraw ();
+                Assert.Equal (0, list.SelectedItem);
+                Assert.True (list.HasFocus);
+                Assert.Contains ("Recovered version", application.Driver.ToString ());
+                application.Keyboard.RaiseKeyDownEvent (new (KeyCode.Tab));
+                Assert.IsType<Button> (dialog.MostFocused);
+            }
+            finally { application.End (session); }
+        }
+        finally { Environment.SetEnvironmentVariable ("DisableRealDriverIO", previousDriverIO); }
+    }
+
+    [Fact]
+    public void BeginOnlyDetailSessionsPreserveCallerSynchronizationContext ()
+    {
+        string? previousDriverIO = Environment.GetEnvironmentVariable ("DisableRealDriverIO");
+        SynchronizationContext? previousContext = SynchronizationContext.Current;
+        SynchronizationContext callerContext = new ();
+        Environment.SetEnvironmentVariable ("DisableRealDriverIO", "1");
+        SynchronizationContext.SetSynchronizationContext (callerContext);
+        try
+        {
+            using (IApplication application = Application.Create ().Init (DriverRegistry.Names.ANSI))
+            {
+                Assert.Same (callerContext, SynchronizationContext.Current);
+                using Runnable window = new () { Width = Dim.Fill (), Height = Dim.Fill () };
+                window.Add (new DetailPanel { Width = Dim.Fill (), Height = Dim.Fill () });
+                SessionToken session = application.Begin (window)!;
+                try
+                {
+                    // Scout's driverless UI sessions pump explicitly. Begin must not install
+                    // a context that would capture awaits without a running main loop.
+                    Assert.Same (callerContext, SynchronizationContext.Current);
+                    using Dialog nested = new () { Title = "Details", Width = 40, Height = 10 };
+                    SessionToken nestedSession = application.Begin (nested)!;
+                    try { Assert.Same (callerContext, SynchronizationContext.Current); }
+                    finally { application.End (nestedSession); }
+                    Assert.Same (callerContext, SynchronizationContext.Current);
+                }
+                finally { application.End (session); }
+                Assert.Same (callerContext, SynchronizationContext.Current);
+            }
+            Assert.Same (callerContext, SynchronizationContext.Current);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext (previousContext);
+            Environment.SetEnvironmentVariable ("DisableRealDriverIO", previousDriverIO);
+        }
+    }
+
     [Theory]
     [InlineData (80)]
     [InlineData (100)]
