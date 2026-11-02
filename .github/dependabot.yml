@@ -21,7 +21,11 @@ updates:
       winget-com:
         patterns: ['Microsoft.WindowsPackageManager.*']
       xunit:
-        patterns: ['xunit*', 'Microsoft.NET.Test.Sdk']
+        patterns: ['xunit*', 'Microsoft.NET.Test.Sdk', 'Microsoft.Testing.*']
+      microsoft-extensions:
+        patterns: ['Microsoft.Extensions.*']
+      file-system-abstractions:
+        patterns: ['System.IO.Abstractions', 'TestableIO.*', 'Testably.Abstractions.FileSystem.Interface']
 
   # GitHub Actions — keep workflow action versions current.
   - package-ecosystem: github-actions

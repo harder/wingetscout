@@ -81,6 +81,18 @@
     <PackageReference Include="Terminal.Gui" Version="2.5.1-develop.183" />
   </ItemGroup>
 
+  <!-- Reviewed overrides for Terminal.Gui's transitive minimum versions. Keep
+       these visible to Dependabot and validate renderer/file-dialog updates. -->
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.5.1" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100.0'">
     <!--
       WinGet COM API projection. Consumed via indexed access only (never foreach over a
