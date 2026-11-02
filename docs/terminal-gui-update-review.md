@@ -1,5 +1,78 @@
 # Terminal.Gui update review
 
+## November 1 follow-up: develop.183
+
+Update current `main` from `2.5.1-develop.171` to `2.5.1-develop.183` for
+[#68](https://github.com/harder/wingetscout/issues/68),
+[#69](https://github.com/harder/wingetscout/issues/69),
+[#71](https://github.com/harder/wingetscout/issues/71), and
+[#72](https://github.com/harder/wingetscout/issues/72). Earlier local reviews
+covered these updates, but the published branch still used `.171`. This change
+is reconciled with the newer Scout 1.1.1 UI and .NET SDK `10.0.403` on main.
+
+Checked every page of NuGet's registration index by publication time. `.183`,
+published October 30, remains the newest listed develop build on November 1.
+The numerically higher `2.6.0-develop.61` was published earlier. Package nuspec
+commits identify the reviewed builds:
+
+| Package | Source commit | Alert |
+| --- | --- | --- |
+| 2.5.1-develop.171 | `edaceba039833eaa4652014e77ee391182ea74f9` | Main baseline |
+| 2.5.1-develop.178 | `fed5e31f8ed144a1e3515fb13d9c7de835f02fee` | #68 |
+| 2.5.1-develop.181 | `f210f00f638f3968654c31d93ecbbcb814902a71` | #69 |
+| 2.5.1-develop.182 | `3540e9c05c48e11a4b1102f6942d1f5c6f627b7d` | #71 |
+| 2.5.1-develop.183 | `84ea67cb4b43c3e711b54dfb46d3facce078f292` | #72 |
+
+The [exact upstream comparison](https://github.com/tui-cs/Terminal.Gui/compare/edaceba039833eaa4652014e77ee391182ea74f9...84ea67cb4b43c3e711b54dfb46d3facce078f292)
+contains 12 commits. Every alerted build is included in `.183`.
+
+### Fixes and adoption decisions
+
+| Upstream change | Scout impact and adoption |
+| --- | --- |
+| [ListView selection/viewport reset, #5745](https://github.com/tui-cs/Terminal.Gui/pull/5745) | Adopt automatically. Detaching a source clears selection; clearing or replacing it resets vertical scrolling; removing collection items clamps selection and an empty collection clears it. Four regression cases use Scout's VersionPickerDialog to test detach, SetSource(null), shorter replacement, and collection shrink/clear, followed by rendered row recovery and arrow/Tab navigation. These cases failed with the earlier `.181` package and pass with `.183`. |
+| Summary-row source replacements in Scout 1.1.1 | Scout's PackageListView reformats plan/result summaries on width changes by replacing its source. Two additional tests scroll the actual plan/result dialogs to their last row and narrow/shrink them. Existing selection restoration keeps that row visible and focused with `.183`; no compensating viewport workaround is needed. Retain explicit initial selections, index checks, width caching, and endpoint key handling. |
+| [Begin/Run synchronization context, #5722](https://github.com/tui-cs/Terminal.Gui/pull/5722) | Adopt automatically. Init/Begin/End preserve the caller's ambient context; Run owns the toolkit context only while its loop executes. A nested Details-session test verifies caller-context preservation through initialization, Begin/End, and disposal. Retain explicit driverless dispatch pumping, guarded InvokeAsync, cancellation, and application lifetime cleanup. |
+| [Hidden application shortcuts, #5758](https://github.com/tui-cs/Terminal.Gui/pull/5758) | Application-scoped MenuItem/Shortcut bindings work with closed popovers and register when App becomes available. Scout does not use those menu APIs, but the shared hotkey handler changes. A real BatchPlanDialog test verifies that Alt+I cannot approve a hidden local Install button and works when it becomes visible. Preserve Scout's global Ctrl+Q and explicit plan review. |
+| [Markdown table layout, #5739](https://github.com/tui-cs/Terminal.Gui/pull/5739) | Adds shared grid geometry, row/column spans, rich cell content, nested copying, and link-focus preservation on relayout. Scout's package list uses TableView; its Details links already use Markdown and retain the newer compact-link, repaint, hover, destination, and resize coverage on main. Rich fetched documentation previews remain a separate feature; package descriptions remain plain text. |
+| [Menu OpenAndSelect, #5746](https://github.com/tui-cs/Terminal.Gui/pull/5746), and [clearing stale submenu arrows, #5754](https://github.com/tui-cs/Terminal.Gui/pull/5754) | No explicit Menu, MenuBar, MenuItem, or PopoverMenu usage. Keep Scout's PackageActionDialog and ListView workflow; no API migration is required. |
+| [Custom file-dialog icons/Nerd Fonts, #5727](https://github.com/tui-cs/Terminal.Gui/pull/5727) | FileSystemIconProvider methods become virtual and Nerd Fonts mappings improve. The diagnostics SaveDialog can use the updated default provider. A custom provider adds no needed behavior; actual font rendering still needs an interactive terminal. |
+
+Reviewed startup, disposal, UI dispatch, callbacks, timers, keyboard handling,
+table layout, Markdown links, and file-dialog usage against the changed runtime
+files. No application API migration is needed. Existing compact-link and
+rendered-layout tests also cover the current UI behavior.
+
+Terminal.Gui's transitive dependency versions are unchanged. Both WinGet COM
+packages remain on the matching latest stable `1.29.380` pair; newer available
+versions are previews. xUnit remains latest stable `4.0.2`. Keep the already
+merged SDK `10.0.403` and regenerate all three lockfiles; only Terminal.Gui
+version/hash entries change.
+
+### Validation
+
+Local validation uses Linux x64 and SDK `10.0.403`:
+
+- All 757 .NET tests pass: eight new compatibility cases plus the existing
+  749-test suite. Coverage includes list source changes, summary resizing,
+  nested sessions, hidden approval hotkeys, Details rendering, cancellation,
+  dispatch, workflows, and parsers.
+- Both Windows COM configurations compile with zero warnings/errors.
+- Locked restores pass for the test project and Windows x64/ARM64 publish
+  restore graphs in both COM modes.
+- Graceful mock `--smoke` exits successfully within 15 seconds with empty
+  stderr. All four monitor tests, the 15-file site build, and whitespace checks
+  pass.
+
+PR CI supplies the Windows x64/ARM64 portable and Identity Native AOT publishes,
+checks for the in-process companion DLLs or Identity winmd, and published mock
+smokes. Those jobs validate packaging and mock startup. Live Windows Terminal
+input/mouse/font behavior, real COM activation, installed MSIX activation, and
+package-changing operations still require an interactive Windows host and are
+not established by these tests. Use read-only `--comdiag`/`--comsmoke` on that
+host before relying on a COM session; native ARM64 COM mutations remain a
+documented limitation.
+
 ## October 24 follow-up: develop.171
 
 For [issue #64](https://github.com/harder/wingetscout/issues/64), update from
