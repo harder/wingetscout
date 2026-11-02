@@ -10,11 +10,12 @@
 
 [Guides](https://github.com/harder/wingetscout/blob/main/docs/index.md) · [Usage](https://github.com/harder/wingetscout/blob/main/docs/usage.md) · [Architecture](https://github.com/harder/wingetscout/blob/main/docs/architecture.md)
 
-**New in [v1.1.2](https://github.com/harder/wingetscout/releases/tag/v1.1.2):** Dialog selection and scrolling fixes, refreshed text parsing, and updated runtime libraries. See the [release notes](https://github.com/harder/wingetscout/blob/main/docs/releases/1.1.2.md). The interface and shortcuts stay familiar; the screenshots and GIFs show 1.1.1 with a frozen snapshot of real package metadata in safe mock mode.
+**New in [v1.1.2](https://github.com/harder/wingetscout/releases/tag/v1.1.2):** Dialog selection and scrolling fixes, refreshed text parsing, and updated runtime libraries. See the [release notes](https://github.com/harder/wingetscout/blob/main/docs/releases/1.1.2.md) for full details and release history.
 
 ![Scout search results and package details in the Sage theme, using sample data](site/media/scout-sage-search.png)
 
-[Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). These captures use Scout's safe `--mock` mode and show sample packages.
+[Watch search in action](site/media/scout-search-demo.gif) · [Watch the upgrades view](site/media/scout-upgrades-demo.gif) · [See all four themes](https://wingetscout.com/#themes). 
+These captures use Scout's safe `--mock` mode and show sample packages.
 
 ## Install
 
@@ -108,9 +109,9 @@ The portable Native AOT build activates WinGet COM through a registration-free m
 
 ## Inspiration and credits
 
-[Scott Hanselman's **WinGet-TUI**](https://github.com/shanselman/winget-tui), built with Rust and Ratatui, inspired this project and deserves credit for showing how approachable WinGet can be in a terminal. WinGet Scout began as an exploration of what a C# Native AOT app and [Terminal.Gui](https://github.com/tui-cs/Terminal.Gui) could do with that kind of experience. It resulted in multiple improvements to the Terminal.Gui library based on testing and benchmarks, and proved that Terminal.Gui was as capable as Ratui in building robust Terminal UI's. 
+[Scott Hanselman's **WinGet-TUI**](https://github.com/shanselman/winget-tui), built with Rust and Ratatui, inspired this project and served as an awesome example of how to design a Terminal UI for WinGet. WinGet Scout began as an exploration of implementing the same experience using C# Native AOT and [Terminal.Gui](https://github.com/tui-cs/Terminal.Gui) to research the capabilities of those technologies. It resulted in multiple improvements to the Terminal.Gui library based on testing and benchmarks, and proved that Terminal.Gui was as capable as Ratui in building robust Terminal UI's. 
 
-I then realized that being .NET-based, this app could leverage the WinGet COM interface to make a WinGet-based TUI even smoother than just relying on the winget CLI alone. WinGet Scout transitioned from a proof-of-concept into an independent package manager tool with its own workflows, design, and release builds. No source code was copied from the inspiration project.
+I then realized that being .NET-based, this app could leverage the WinGet COM interface to make a WinGet-based TUI even smoother than just relying on wrapping the winget CLI alone. WinGet Scout transitioned from a proof-of-concept into an independent package manager tool with its own workflows, design, and release builds. No source code was copied from the inspiration project.
 
 Scout for WinGet is [MIT licensed](LICENSE). WinGet is maintained by [Microsoft](https://github.com/microsoft/winget-cli); Terminal.Gui is maintained by its [contributors](https://github.com/tui-cs/Terminal.Gui).
 
