@@ -10,6 +10,7 @@ See the [1.1.1 release notes](releases/1.1.1.md) for the changes since v1.1.0.
 | --- | --- |
 | [Unreleased changes](releases/unreleased.md) | Changes under development after 1.1.1 |
 | [Terminal.Gui update review](terminal-gui-update-review.md) | Upstream fixes, adoption decisions, and compatibility validation |
+| [Transitive dependency review](transitive-dependency-review.md) | Runtime/test dependency overrides and the Application Insights compatibility bound |
 | [1.1.1 release notes](releases/1.1.1.md) | Compact layouts, simpler Details, and rendering fixes |
 | [1.1.0 release notes](releases/1.1.0.md) | Batch UX, reviewed retries, diagnostics, and advanced options |
 | [Usage](usage.md) | Navigation, selections, batch review, run reports, retries, and update checks |
