@@ -78,7 +78,7 @@ The workflow is wired to [Azure Artifact Signing](https://learn.microsoft.com/en
    | `AZURE_SIGNING_PROFILE` | Public Trust certificate-profile name |
    | `MSIX_PUBLISHER` | Exact certificate subject from the profile preview |
 
-7. **Validate with a new release.** The workflow rejects partial configuration, signs both MSIX architectures with `azure/trusted-signing-action`, and runs `signtool verify /pa` before publishing. Inspect the release's signed MSIX and install it on a clean test PC **without importing a development certificate**. Confirm the displayed publisher and run the COM diagnostics. A self-signed MSIX from `packaging/build-msix.ps1 -SelfSigned` is only for local testing and requires explicit trust on test devices.
+7. **Validate with a new release.** The workflow rejects partial configuration, signs both MSIX architectures with `azure/artifact-signing-action`, and runs `signtool verify /pa` before publishing. Inspect the release's signed MSIX and install it on a clean test PC **without importing a development certificate**. Confirm the displayed publisher and run the COM diagnostics. A self-signed MSIX from `packaging/build-msix.ps1 -SelfSigned` is only for local testing and requires explicit trust on test devices.
 
 Microsoft's [MSIX signing guide](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide) explains the distinction between development and production signatures. A valid public signature identifies the publisher and enables reputation to build; it does **not** promise an immediate SmartScreen pass for a new app.
 

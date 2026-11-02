@@ -3,12 +3,13 @@
 Start with the [README](../README.md) for installation and a quick tour, or
 [CONTRIBUTING](../CONTRIBUTING.md) to build and test a change.
 
-These guides describe [v1.1.1](https://github.com/harder/wingetscout/releases/tag/v1.1.1).
-See the [1.1.1 release notes](releases/1.1.1.md) for the changes since v1.1.0.
+These guides describe [v1.1.2](https://github.com/harder/wingetscout/releases/tag/v1.1.2).
+See the [1.1.2 release notes](releases/1.1.2.md) for the changes since v1.1.1.
 
 | Guide | Use it for |
 | --- | --- |
-| [Unreleased changes](releases/unreleased.md) | Changes under development after 1.1.1 |
+| [Unreleased changes](releases/unreleased.md) | Changes under development after 1.1.2 |
+| [1.1.2 release notes](releases/1.1.2.md) | Dialog compatibility fixes and updated runtime/test dependencies |
 | [Terminal.Gui update review](terminal-gui-update-review.md) | Upstream fixes, adoption decisions, and compatibility validation |
 | [Transitive dependency review](transitive-dependency-review.md) | Runtime/test dependency overrides and the Application Insights compatibility bound |
 | [1.1.1 release notes](releases/1.1.1.md) | Compact layouts, simpler Details, and rendering fixes |
