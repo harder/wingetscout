@@ -13,6 +13,9 @@ The 1.1.1 captures use the frozen [catalog snapshot](../src/MockData/README.md),
 with real package metadata and observed installed/available versions. Operations
 remain simulated in safe `--mock` mode.
 
+The 1.1.2 maintenance release uses the same visible layout. The existing media
+keeps its original 1.1.1 labels so its capture version remains clear.
+
 The search demo finds Neovim, marks it, opens Actions, reviews its ready-to-install
 plan, and inspects Details. The upgrades demo marks two packages, reviews their
 plan, inspects Details, and opens backend/source diagnostics. Both cancel the
@@ -35,7 +38,7 @@ checking the review and cancellation steps. Use `-EvidenceDirectory` to choose
 a different evidence folder. Review representative GIF frames as well as each PNG.
 
 Keep the homepage's new-release section, documentation, README shortcuts, and
-[release notes](releases/1.1.1.md) aligned. Until a new release is published,
+[release notes](releases/1.1.2.md) aligned. Until a new release is published,
 download buttons must still target the latest published
 assets and main-only features must be labelled. The documentation sidebar and
 section IDs are checked by the site build; check both pages at desktop and narrow
