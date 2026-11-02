@@ -26,6 +26,9 @@ updates:
   # GitHub Actions — keep workflow action versions current.
   - package-ecosystem: github-actions
     directory: /
+    groups:
+      codeql:
+        patterns: ['github/codeql-action/*']
     schedule:
       interval: monthly
     assignees: [harder]
