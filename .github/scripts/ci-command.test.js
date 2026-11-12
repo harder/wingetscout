@@ -22,6 +22,24 @@ test('bounded capture drops partial first lines and retains final evidence', () 
   assert.ok(!output.includes('xxx'));
 });
 
+test('long lines and carriage-return progress retain the final failure', () => {
+  for (const separator of ['', '\r']) {
+    for (const ending of ['', '\n', '\n\n']) {
+      const output = tail(('progress' + separator).repeat(LIMIT) + 'final failure' + ending);
+      assert.match(output, /final failure\s*$/);
+      assert.ok(Buffer.byteLength(output) <= LIMIT + 32);
+    }
+  }
+});
+
+test('common credential fields and URL userinfo are redacted', () => {
+  for (const input of ['"password":"x"', 'password = x', 'token: x', 'https://user:pw@host', '"Authorization":"Bearer x"']) {
+    const output = sanitize(input, {});
+    assert.match(output, /\[REDACTED\]/);
+    assert.ok(!output.includes('"x"') && !output.endsWith(' x') && !output.includes('user:pw'));
+  }
+});
+
 for (const code of [0, 7]) {
   test(`command exit ${code} is preserved and both output streams are retained`, () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'scout-ci-command-'));
@@ -59,5 +77,18 @@ test('missing executable fails and retains prerequisite evidence', () => {
     const result = spawnSync(process.execPath, [runner, 'managed-tests', 'scout-command-that-does-not-exist'], { cwd, encoding: 'utf8' });
     assert.equal(result.status, 127);
     assert.match(fs.readFileSync(path.join(cwd, 'obj/ci-diagnostics/managed-tests.log'), 'utf8'), /ENOENT/);
+  } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test('unreadable SDK metadata does not discard failing command output', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'scout-ci-invalid-sdk-'));
+  try {
+    fs.writeFileSync(path.join(cwd, 'global.json'), 'invalid JSON');
+    const result = spawnSync(process.execPath, [runner, 'managed-tests', process.execPath, '-e',
+      "console.error('original failure'); process.exit(7)"], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 7);
+    const log = fs.readFileSync(path.join(cwd, 'obj/ci-diagnostics/managed-tests.log'), 'utf8');
+    assert.match(log, /SDK pin: unavailable/);
+    assert.match(log, /original failure/);
   } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
 });

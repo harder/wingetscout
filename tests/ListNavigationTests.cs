@@ -549,12 +549,16 @@ public sealed class ListNavigationTests
             {
                 static string Brief (string? value) => new ((value ?? "").Take (256)
                     .Select (c => char.IsControl (c) ? ' ' : c).ToArray ());
+                IReadOnlyList<Exception> failures = Window.BackgroundFailures;
+                Exception? firstFailure = failures.FirstOrDefault ();
                 Assert.Fail ($"UI checkpoint did not complete within three seconds: {Brief (checkpoint)}\n"
                     + $"Mode={State.Mode}; loading={State.Loading}; detailLoading={State.DetailLoading}; "
                     + $"rows={State.Filtered.Count}; selectedRow={Table.Value?.SelectedCell.Y}; "
                     + $"focus={Window.MostFocused?.GetType ().Name}; modal={Application.TopRunnable?.GetType ().Name}; "
                     + $"backgroundComplete={CaptureBackgroundWorkCompletion ().IsCompleted}; "
-                    + $"backgroundFailures={Window.BackgroundFailures.Count}; status={Brief (State.StatusMessage)}");
+                    + $"backgroundFailures={failures.Count}; "
+                    + $"firstFailure={firstFailure?.GetType ().Name}: {Brief (firstFailure?.Message)}; "
+                    + $"status={Brief (State.StatusMessage)}");
             }
             Assert.Empty (Window.BackgroundFailures);
         }

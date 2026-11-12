@@ -8,6 +8,7 @@ const { stripVTControlCharacters } = require('node:util');
 const LIMIT = 32 * 1024;
 
 function sanitize(text, env = process.env) {
+  // Redact known credential forms; this is not a filter for arbitrary private data.
   text = stripVTControlCharacters(text);
   for (const [name, value] of Object.entries(env)) {
     if (/token|password|secret|credential|connection.?string/i.test(name) && value?.length >= 4) {
@@ -15,18 +16,20 @@ function sanitize(text, env = process.env) {
     }
   }
   return text
-    .replace(/(authorization\s*[:=]\s*)(?:bearer|basic)\s+\S+/gi, '$1[REDACTED]')
-    .replace(/((?:access_token|token|password|secret)=)[^\s&]+/gi, '$1[REDACTED]')
+    .replace(/(\bhttps?:\/\/)[^/\s@]+@/gi, '$1[REDACTED]@')
+    .replace(/(["']?\b(?:authorization|access_token|token|password|secret)\b["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:bearer|basic)\s+[^\s,;&]+|[^\s,;&]+)/gi, '$1[REDACTED]')
     .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/g, '[REDACTED]')
     .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
 }
 
-// Retain complete final lines. Dropping a partial first line also avoids keeping
-// only the suffix of a credential that straddles the capture boundary.
+// Prefer complete final lines, but retain a bounded fragment when a tool emits
+// one long line (including carriage-return progress output).
 function tail(text) {
   if (Buffer.byteLength(text) <= LIMIT) return text;
   text = Buffer.from(text).subarray(-LIMIT).toString('utf8');
-  return '[earlier output omitted]\n' + text.slice(text.indexOf('\n') + 1 || text.length);
+  const newline = text.indexOf('\n');
+  const completeLines = newline >= 0 ? text.slice(newline + 1) : '';
+  return '[earlier output omitted]\n' + (completeLines.trim() ? completeLines : text);
 }
 
 async function run(phase, command, args) {
@@ -44,7 +47,8 @@ async function run(phase, command, args) {
   try {
     const directory = path.join('obj', 'ci-diagnostics');
     fs.mkdirSync(directory, { recursive: true });
-    const sdk = JSON.parse(fs.readFileSync('global.json', 'utf8')).sdk.version;
+    let sdk = 'unavailable';
+    try { sdk = JSON.parse(fs.readFileSync('global.json', 'utf8')).sdk?.version ?? sdk; } catch { /* Still retain the command output. */ }
     const metadata = `Phase: ${phase}\nExit code: ${code}\nOS/architecture: ${os.platform()}/${os.arch()}\nSDK pin: ${sdk}\n`;
     const output = sanitize(metadata) + `\nstdout (tail):\n${tail(sanitize(stdout))}\nstderr (tail):\n${tail(sanitize(stderr))}`;
     fs.writeFileSync(path.join(directory, `${phase}.log`), output);

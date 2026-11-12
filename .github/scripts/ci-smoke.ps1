@@ -9,10 +9,19 @@ if ($timedOut) {
 $proc.WaitForExit()
 Get-Content smoke.out
 Get-Content smoke.err | ForEach-Object { [Console]::Error.WriteLine($_) }
-if ($timedOut) { throw 'Mock run did not complete graceful shutdown within 15 seconds' }
+if ($timedOut) {
+  Write-Host '::error::Mock run did not complete graceful shutdown within 15 seconds'
+  exit 1
+}
+if ($null -eq $proc.ExitCode) {
+  Write-Host '::error::Mock run did not provide an exit code'
+  exit 1
+}
 if ($proc.ExitCode -ne 0) {
+  Write-Host "::error::Mock run exited with $($proc.ExitCode)"
   exit $proc.ExitCode
 }
 if ((Get-Item smoke.err).Length -gt 0) {
-  throw 'Mock run produced stderr output'
+  Write-Host '::error::Mock run produced stderr output'
+  exit 1
 }
