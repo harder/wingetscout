@@ -536,7 +536,8 @@ public sealed class ListNavigationTests
             Application.LayoutAndDraw ();
         }
 
-        public void PumpUntil (Func<bool> complete)
+        public void PumpUntil (Func<bool> complete,
+            [System.Runtime.CompilerServices.CallerArgumentExpression (nameof (complete))] string checkpoint = "")
         {
             System.Diagnostics.Stopwatch deadline = System.Diagnostics.Stopwatch.StartNew ();
             while (!complete () && deadline.Elapsed < TimeSpan.FromSeconds (3))
@@ -544,7 +545,17 @@ public sealed class ListNavigationTests
                 Pump ();
                 Thread.Sleep (1);
             }
-            Assert.True (complete (), "UI work did not complete within three seconds");
+            if (!complete ())
+            {
+                static string Brief (string? value) => new ((value ?? "").Take (256)
+                    .Select (c => char.IsControl (c) ? ' ' : c).ToArray ());
+                Assert.Fail ($"UI checkpoint did not complete within three seconds: {Brief (checkpoint)}\n"
+                    + $"Mode={State.Mode}; loading={State.Loading}; detailLoading={State.DetailLoading}; "
+                    + $"rows={State.Filtered.Count}; selectedRow={Table.Value?.SelectedCell.Y}; "
+                    + $"focus={Window.MostFocused?.GetType ().Name}; modal={Application.TopRunnable?.GetType ().Name}; "
+                    + $"backgroundComplete={CaptureBackgroundWorkCompletion ().IsCompleted}; "
+                    + $"backgroundFailures={Window.BackgroundFailures.Count}; status={Brief (State.StatusMessage)}");
+            }
             Assert.Empty (Window.BackgroundFailures);
         }
 

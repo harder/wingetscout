@@ -26,7 +26,7 @@ jobs:
         uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
 
       - name: Test critical dependency monitor
-        run: node --test .github/scripts/critical-dependencies.test.js
+        run: node --test .github/scripts/critical-dependencies.test.js .github/scripts/ci-command.test.js
 
   dependency-review:
     if: github.event_name == 'pull_request'
@@ -58,16 +58,31 @@ jobs:
         run: dotnet build tests/WinGetScout.Tests.csproj --no-restore --no-dependencies --configuration Release
 
       - name: Test
-        run: dotnet test --project tests/WinGetScout.Tests.csproj --no-build --configuration Release --verbosity normal --minimum-expected-tests 245
+        run: node .github/scripts/ci-command.js managed-tests dotnet test --project tests/WinGetScout.Tests.csproj --no-build --configuration Release --verbosity normal --minimum-expected-tests 245
 
       - name: Graceful mock smoke
         run: |
-          timeout 15s dotnet bin/Release/net10.0/wingetscout.dll --smoke 2> smoke.err
-          if [ -s smoke.err ]; then
-            echo "::error::Mock run produced stderr output"
-            cat smoke.err
-            exit 1
-          fi
+          # The variables below belong to the child bash process.
+          # shellcheck disable=SC2016
+          node .github/scripts/ci-command.js managed-smoke bash -e -c '
+            status=0
+            timeout 15s dotnet bin/Release/net10.0/wingetscout.dll --smoke 2> smoke.err || status=$?
+            cat smoke.err >&2
+            if [ "$status" -ne 0 ]; then exit "$status"; fi
+            if [ -s smoke.err ]; then
+              echo "::error::Mock run produced stderr output"
+              exit 1
+            fi
+          '
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failure-diagnostics-linux
+          path: obj/ci-diagnostics/*.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   build-and-test:
     needs: workflow-lint
@@ -130,30 +145,15 @@ jobs:
           /p:InformationalVersion=${{ steps.version.outputs.ci_version }}
 
       - name: Test
-        run: dotnet test --project tests/WinGetScout.Tests.csproj --no-build --configuration Release --verbosity normal --minimum-expected-tests 245
+        run: node .github/scripts/ci-command.js managed-tests dotnet test --project tests/WinGetScout.Tests.csproj --no-build --configuration Release --verbosity normal --minimum-expected-tests 245
 
       # The app self-stops through its normal shutdown path. The outer deadline is only a
       # deadlock guard; force-kill is failure cleanup, never the successful path.
       - name: Graceful mock smoke
         shell: pwsh
         run: |
-          $proc = Start-Process -FilePath "dotnet" -ArgumentList "bin/Release/net10.0/wingetscout.dll", "--smoke" -PassThru -RedirectStandardError err.log
-          if (!$proc.WaitForExit(15000)) {
-            Stop-Process -Id $proc.Id -Force
-            Write-Host "::error::Mock run did not complete graceful shutdown within 15 seconds"
-            exit 1
-          }
-          $proc.WaitForExit()
-          if ($proc.ExitCode -ne 0) {
-            Write-Host "::error::Mock run exited with code $($proc.ExitCode)"
-            if ((Get-Item err.log).Length -gt 0) { Get-Content err.log }
-            exit 1
-          }
-          if ((Get-Item err.log).Length -gt 0) {
-            Write-Host "::error::Mock run produced stderr output"
-            Get-Content err.log
-            exit 1
-          }
+          node .github/scripts/ci-command.js managed-smoke pwsh -NoLogo -NoProfile -File .github/scripts/ci-smoke.ps1 -ApplicationPath bin/Release/net10.0/wingetscout.dll
+          exit $LASTEXITCODE
 
       - name: Upload CI build outputs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -162,6 +162,15 @@ jobs:
           path: |
             bin/Release/net10.0/**
             tests/bin/Release/net10.0/**
+          retention-days: 7
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failure-diagnostics-windows
+          path: obj/ci-diagnostics/*.log
+          if-no-files-found: ignore
           retention-days: 7
 
   native-aot-smoke:
@@ -195,7 +204,7 @@ jobs:
           foreach ($name in @('wingetscout.exe', 'WindowsPackageManager.dll', 'Microsoft.Management.Deployment.InProc.dll')) {
             if (-not (Test-Path (Join-Path $folder $name))) { throw "Missing $name from native publish" }
           }
-          & (Join-Path $folder 'wingetscout.exe') --smoke
+          node .github/scripts/ci-command.js native-smoke (Join-Path $folder 'wingetscout.exe') --smoke
           if ($LASTEXITCODE -ne 0) { throw "Native mock smoke failed: $LASTEXITCODE" }
 
       - name: Publish MSIX Identity build with locked dependencies
@@ -207,5 +216,14 @@ jobs:
           foreach ($name in @('wingetscout.exe', 'Microsoft.Management.Deployment.winmd')) {
             if (-not (Test-Path (Join-Path $folder $name))) { throw "Missing $name from Identity publish" }
           }
-          & (Join-Path $folder 'wingetscout.exe') --smoke
+          node .github/scripts/ci-command.js identity-smoke (Join-Path $folder 'wingetscout.exe') --smoke
           if ($LASTEXITCODE -ne 0) { throw "Identity mock smoke failed: $LASTEXITCODE" }
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failure-diagnostics-${{ matrix.rid }}
+          path: obj/ci-diagnostics/*.log
+          if-no-files-found: ignore
+          retention-days: 7
