@@ -263,15 +263,15 @@ public sealed class WorkflowUiTests
     [Theory]
     [InlineData (true)]
     [InlineData (false)]
-    public void SingleRunRecordsOnlyItsOwnCancellationAsSkipped (bool matchingToken)
+    public async Task SingleRunRecordsOnlyItsOwnCancellationAsSkipped (bool matchingToken)
     {
         string root = Path.Combine (Path.GetTempPath (), "scout-cancel-identity-" + Guid.NewGuid ().ToString ("N"));
         try
         {
             WorkflowStore store = new (root);
             TaskCompletionSource<OpResult> completion = new (TaskCreationOptions.RunContinuationsAsynchronously);
-            CancellationToken operationToken = default;
-            RecordingBackend backend = new () { InstallResult = ct => { operationToken = ct; return completion.Task; } };
+            TaskCompletionSource<CancellationToken> started = new (TaskCreationOptions.RunContinuationsAsynchronously);
+            RecordingBackend backend = new () { InstallResult = ct => { started.SetResult (ct); return completion.Task; } };
             using ListNavigationTests.UiSession ui = new (AppMode.Search, 1, backend, store);
             ui.Application.AddTimeout (TimeSpan.FromMilliseconds (1), () =>
             {
@@ -282,8 +282,10 @@ public sealed class WorkflowUiTests
                 return false;
             });
             ui.Invoke ("ConfirmAndInstall", ui.State.Packages [0], null!, null!);
-            ui.PumpUntil (() => backend.Mutations == 1 || !ui.State.Loading);
-            Assert.True (backend.Mutations == 1, $"Operation did not start: {ui.State.StatusMessage}");
+            // The mutation counter advances before InstallResult is called. Wait for the
+            // token itself so cancellation cannot race the fake backend's startup.
+            ui.PumpUntil (() => started.Task.IsCompleted);
+            CancellationToken operationToken = await started.Task;
             ui.Press (KeyCode.Esc);
             Assert.True (operationToken.IsCancellationRequested);
             using CancellationTokenSource unrelated = new ();

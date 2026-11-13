@@ -80,7 +80,7 @@ jobs:
         uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
 
       - name: Test critical dependency monitor
-        run: node --test .github/scripts/critical-dependencies.test.js
+        run: node --test .github/scripts/critical-dependencies.test.js .github/scripts/ci-command.test.js
 
   tests:
     needs: [validate-tag, workflow-lint]
@@ -98,9 +98,18 @@ jobs:
       - name: Restore locked dependencies
         run: dotnet restore tests/WinGetScout.Tests.csproj --locked-mode
       - name: Run tests
-        run: dotnet test --project tests/WinGetScout.Tests.csproj -c Release --no-restore --minimum-expected-tests 245
+        run: node .github/scripts/ci-command.js managed-tests dotnet test --project tests/WinGetScout.Tests.csproj -c Release --no-restore --minimum-expected-tests 245
       - name: Smoke test
-        run: dotnet run --project WinGetScout.csproj -c Release -f net10.0 --no-restore -- --smoke
+        run: node .github/scripts/ci-command.js managed-smoke dotnet run --project WinGetScout.csproj -c Release -f net10.0 --no-restore -- --smoke
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failure-diagnostics-release-tests
+          path: obj/ci-diagnostics/*.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   build:
     needs: [validate-tag, tests]
