@@ -40,6 +40,15 @@ test('common credential fields and URL userinfo are redacted', () => {
   }
 });
 
+test('prefixed credential names are redacted without relying on environment values', () => {
+  for (const name of ['client_secret', 'GITHUB_TOKEN', 'db_password', 'NUGET_API_TOKEN', 'auth.access_token', 'client-secret']) {
+    for (const value of ['x', 'abc12345']) {
+      const output = sanitize(`${name}=${value}`, {});
+      assert.equal(output, `${name}=[REDACTED]`);
+    }
+  }
+});
+
 for (const code of [0, 7]) {
   test(`command exit ${code} is preserved and both output streams are retained`, () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'scout-ci-command-'));

@@ -17,7 +17,7 @@ function sanitize(text, env = process.env) {
   }
   return text
     .replace(/(\bhttps?:\/\/)[^/\s@]+@/gi, '$1[REDACTED]@')
-    .replace(/(["']?\b(?:authorization|access_token|token|password|secret)\b["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:bearer|basic)\s+[^\s,;&]+|[^\s,;&]+)/gi, '$1[REDACTED]')
+    .replace(/(["']?\b[A-Za-z0-9_.-]*(?:authorization|access_token|token|password|secret)\b["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:bearer|basic)\s+[^\s,;&]+|[^\s,;&]+)/gi, '$1[REDACTED]')
     .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/g, '[REDACTED]')
     .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
 }
