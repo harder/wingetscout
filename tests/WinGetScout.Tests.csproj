@@ -21,7 +21,7 @@
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport.Abstractions" Version="2.5.2" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.14" PrivateAssets="all" />
     <!-- MTP telemetry still calls TrackEvent(name, properties, metrics), removed in AI 3.x. -->
-    <PackageReference Include="Microsoft.ApplicationInsights" Version="[2.23.0,3.0.0)" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.ApplicationInsights" Version="3.2.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
