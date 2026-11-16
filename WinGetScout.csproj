@@ -84,7 +84,7 @@
   <!-- Reviewed overrides for Terminal.Gui's transitive minimum versions. Keep
        these visible to Dependabot and validate renderer/file-dialog updates. -->
   <ItemGroup>
-    <PackageReference Include="Markdig" Version="1.5.1" />
+    <PackageReference Include="Markdig" Version="1.6.0" />
     <PackageReference Include="System.IO.Abstractions" Version="22.3.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
