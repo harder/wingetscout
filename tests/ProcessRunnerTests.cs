@@ -30,15 +30,17 @@ public sealed class ProcessRunnerTests : IDisposable
         Assert.Equal ("standard-outputstandard-error", output);
     }
 
-    [Fact]
-    public async Task RunWithCodeAsync_PreservesArgumentBoundariesWithoutShellExpansion ()
+    [Theory]
+    [InlineData ("spaces ; $(not-a-command) & 'quotes' \"double\"")]
+    [InlineData ("C:\\Program Files\\Thing\\")]
+    [InlineData ("")]
+    public async Task RunWithCodeAsync_PreservesArgumentBoundariesWithoutShellExpansion (string payload)
     {
-        const string payload = "spaces ; $(not-a-command) & 'quotes' \"double\"";
         FakeCommand command = CreateScript (
             "arguments",
-            unix: "printf '%s' \"$1\"",
-            windows: "[Console]::Out.Write($args[0])");
-        IReadOnlyList<string> arguments = [.. command.Arguments, payload];
+            unix: "printf '%s|%s|%s' \"$#\" \"$1\" \"$2\"",
+            windows: "[Console]::Out.Write(\"$($args.Count)|$($args[0])|$($args[1])\")");
+        IReadOnlyList<string> arguments = [.. command.Arguments, payload, "after"];
 
         (int code, string output) = await CliBackend.RunWithCodeAsync (
             arguments,
@@ -47,7 +49,7 @@ public sealed class ProcessRunnerTests : IDisposable
             TestContext.Current.CancellationToken);
 
         Assert.Equal (0, code);
-        Assert.Equal (payload, output);
+        Assert.Equal ($"2|{payload}|after", output);
     }
 
     [Fact]
@@ -359,27 +361,6 @@ public sealed class ProcessRunnerTests : IDisposable
         Assert.False (stdoutStream.CanRead);
         Assert.False (stderrStream.CanRead);
         Assert.InRange (stopwatch.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds (2));
-    }
-
-    [Theory]
-    [InlineData ("", "\"\"")]
-    [InlineData ("plain", "plain")]
-    [InlineData ("two words", "\"two words\"")]
-    [InlineData ("a\"b", "\"a\\\"b\"")]
-    [InlineData ("C:\\Program Files\\Thing\\", "\"C:\\Program Files\\Thing\\\\\"")]
-    public void QuoteWindowsArgument_FollowsCreateProcessBackslashQuoteRules (string argument, string expected)
-    {
-        Assert.Equal (expected, ProcessRunner.QuoteWindowsArgument (argument));
-    }
-
-    [Fact]
-    public void BuildWindowsCommandLine_QuotesExecutableAndKeepsArgumentBoundaries ()
-    {
-        string commandLine = ProcessRunner.BuildWindowsCommandLine (
-            "C:\\Program Files\\winget.exe",
-            ["search", "two words", "a\"b", string.Empty]);
-
-        Assert.Equal ("\"C:\\Program Files\\winget.exe\" search \"two words\" \"a\\\"b\" \"\"", commandLine);
     }
 
     [Fact]
