@@ -6,18 +6,27 @@ internal static class UiText
     internal static string TakeColumns (string text, int width)
     {
         if (width <= 0) return string.Empty;
-        StringBuilder result = new ();
+        ReadOnlySpan<char> remaining = text;
+        int kept = 0;
         int used = 0;
-        System.Globalization.TextElementEnumerator elements = System.Globalization.StringInfo.GetTextElementEnumerator (text);
-        while (elements.MoveNext ())
+        while (!remaining.IsEmpty)
         {
-            string element = elements.GetTextElement ();
-            int columns = element.GetColumns ();
-            if (used + columns > width) break;
-            result.Append (element);
-            used += columns;
+            int length = System.Globalization.StringInfo.GetNextTextElementLength (remaining);
+            int columns = 0;
+            // Match Terminal.Gui's GetColumns: ignore control widths and cap each grapheme at two cells.
+            foreach (Rune rune in remaining [..length].EnumerateRunes ())
+            {
+                columns += Math.Max (0, rune.GetColumns ());
+                if (columns >= 2) break;
+            }
+
+            used += Math.Min (columns, 2);
+            if (used > width) break;
+            kept += length;
+            remaining = remaining [length..];
         }
-        return result.ToString ();
+
+        return text [..kept];
     }
 
     internal static string Ellipsize (string text, int width) => text.GetColumns () <= width ? text
