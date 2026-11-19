@@ -294,7 +294,7 @@ static IBackend SelectBackend (string [] args)
 #else
     if (wantCom)
     {
-        Console.Error.WriteLine ("--com is only available in the Windows build (net10.0-windows…); using the CLI backend instead.");
+        Console.Error.WriteLine ("--com is only available in the Windows build (net11.0-windows…); using the CLI backend instead.");
     }
 #endif
 

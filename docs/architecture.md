@@ -1,6 +1,6 @@
 # Architecture
 
-Scout is a .NET 10 Terminal.Gui application with a shared UI and three package
+Scout is a .NET 11 Terminal.Gui application with a shared UI and three package
 backends. The Windows build publishes as Native AOT. Start with the
 [README](../README.md) for installation and the [usage guide](usage.md) for the
 interface.
@@ -127,7 +127,7 @@ remains explicit and does not establish which installer execution will choose.
 
 ## Builds and releases
 
-`WinGetScout.csproj` has a cross-platform `net10.0` target for mock and CLI
+`WinGetScout.csproj` has a cross-platform `net11.0` target for mock and CLI
 work and a Windows target that includes COM. `global.json` pins the SDK;
 lock files cover the normal app, the MSIX Identity variant, and tests.
 `.github/workflows/ci.yml` builds and tests, while

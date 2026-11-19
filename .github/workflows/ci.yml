@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Setup .NET 10
+      - name: Setup .NET 11
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
@@ -52,7 +52,7 @@ jobs:
         run: dotnet restore tests/WinGetScout.Tests.csproj --locked-mode
 
       - name: Build cross-platform application
-        run: dotnet build WinGetScout.csproj --no-restore --configuration Release --framework net10.0
+        run: dotnet build WinGetScout.csproj --no-restore --configuration Release --framework net11.0
 
       - name: Build tests
         run: dotnet build tests/WinGetScout.Tests.csproj --no-restore --no-dependencies --configuration Release
@@ -66,7 +66,7 @@ jobs:
           # shellcheck disable=SC2016
           node .github/scripts/ci-command.js managed-smoke bash -e -c '
             status=0
-            timeout 15s dotnet bin/Release/net10.0/wingetscout.dll --smoke 2> smoke.err || status=$?
+            timeout 15s dotnet bin/Release/net11.0/wingetscout.dll --smoke 2> smoke.err || status=$?
             cat smoke.err >&2
             if [ "$status" -ne 0 ]; then exit "$status"; fi
             if [ -s smoke.err ]; then
@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Setup .NET 10
+      - name: Setup .NET 11
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
@@ -120,7 +120,7 @@ jobs:
           dotnet build WinGetScout.csproj
           --no-restore
           --configuration Release
-          --framework net10.0
+          --framework net11.0
           /p:Version=${{ steps.version.outputs.ci_version }}
           /p:InformationalVersion=${{ steps.version.outputs.ci_version }}
 
@@ -131,7 +131,7 @@ jobs:
           dotnet build WinGetScout.csproj
           --no-restore
           --configuration Release
-          --framework net10.0-windows10.0.26100.0
+          --framework net11.0-windows10.0.26100.0
           /p:Version=${{ steps.version.outputs.ci_version }}
           /p:InformationalVersion=${{ steps.version.outputs.ci_version }}
 
@@ -152,7 +152,7 @@ jobs:
       - name: Graceful mock smoke
         shell: pwsh
         run: |
-          node .github/scripts/ci-command.js managed-smoke pwsh -NoLogo -NoProfile -File .github/scripts/ci-smoke.ps1 -ApplicationPath bin/Release/net10.0/wingetscout.dll
+          node .github/scripts/ci-command.js managed-smoke pwsh -NoLogo -NoProfile -File .github/scripts/ci-smoke.ps1 -ApplicationPath bin/Release/net11.0/wingetscout.dll
           exit $LASTEXITCODE
 
       - name: Upload CI build outputs
@@ -160,8 +160,8 @@ jobs:
         with:
           name: wingetscout-${{ steps.version.outputs.ci_version }}-win-build
           path: |
-            bin/Release/net10.0/**
-            tests/bin/Release/net10.0/**
+            bin/Release/net11.0/**
+            tests/bin/Release/net11.0/**
           retention-days: 7
 
       - name: Upload failure diagnostics
@@ -196,7 +196,7 @@ jobs:
             packages.identity.lock.json
             tests/packages.lock.json
       - name: Publish native Windows build
-        run: dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:RestoreLockedMode=true -o publish/${{ matrix.rid }}
+        run: dotnet publish WinGetScout.csproj -c Release -f net11.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:RestoreLockedMode=true -o publish/${{ matrix.rid }}
       - name: Check packaged COM files and mock startup
         shell: pwsh
         run: |
@@ -208,7 +208,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Native mock smoke failed: $LASTEXITCODE" }
 
       - name: Publish MSIX Identity build with locked dependencies
-        run: dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:WingetComMode=Identity -p:RestoreLockedMode=true -o publish/identity-${{ matrix.rid }}
+        run: dotnet publish WinGetScout.csproj -c Release -f net11.0-windows10.0.26100.0 -r ${{ matrix.rid }} -p:WingetComMode=Identity -p:RestoreLockedMode=true -o publish/identity-${{ matrix.rid }}
       - name: Check Identity build metadata and mock startup
         shell: pwsh
         run: |
