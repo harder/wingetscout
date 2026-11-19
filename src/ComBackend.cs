@@ -1,7 +1,7 @@
 // The COM backend is Windows-only: it talks to the WinGet COM API
 // (Microsoft.Management.Deployment) instead of shelling out to winget.exe and parsing
 // stdout. The whole file is gated on WINGET_COM, which the .csproj defines only for the
-// net10.0-windows10.0.26100.0 TFM — on net10.0 this file compiles to nothing so the
+// net11.0-windows10.0.26100.0 TFM — on net11.0 this file compiles to nothing so the
 // cross-platform build stays clean.
 //
 // === The one AOT rule ===

@@ -26,8 +26,8 @@ Build the current branch, install [tuirec](https://github.com/tui-cs/tuirec),
 then run on Windows:
 
 ```powershell
-dotnet build WinGetScout.csproj -c Release -f net10.0
-./site/capture-themes.ps1 -AppPath ./bin/Release/net10.0/wingetscout.exe
+dotnet build WinGetScout.csproj -c Release -f net11.0
+./site/capture-themes.ps1 -AppPath ./bin/Release/net11.0/wingetscout.exe
 python site/build.py
 ```
 

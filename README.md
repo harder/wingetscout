@@ -39,7 +39,7 @@ After that package is accepted, `winget install -e --id Harder.WinGetScout` will
    .\wingetscout.exe
    ```
 
-Scout requires Windows 10 or 11 and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) (included with current App Installer). Check that WinGet is available with `winget --version`; if the command is missing, install or update App Installer. Windows Terminal is recommended for the best display. If you enable scheduled update checks, leave the extracted folder at the same path so the scheduled task can find the executable.
+Scout requires Windows 10 or 11 and [WinGet](https://learn.microsoft.com/windows/package-manager/winget/) (included with current App Installer). Check that WinGet is available with `winget --version`; if the command is missing, install or update App Installer. The native builds require an x64 CPU with x86-64-v2 support or an ARM64 CPU with LSE support. Windows Terminal is recommended for the best display. If you enable scheduled update checks, leave the extracted folder at the same path so the scheduled task can find the executable.
 
 ### Other downloads
 
@@ -117,7 +117,7 @@ Scout for WinGet is [MIT licensed](LICENSE). WinGet is maintained by [Microsoft]
 
 ## Development
 
-Development requires the .NET 10 SDK. The application targets both `net10.0` (cross-platform UI and CLI/mock backends) and `net10.0-windows10.0.26100.0` (Windows COM backend). A Native AOT publish requires Windows and Visual Studio C++ build tools.
+Development requires the .NET 11 SDK. The application targets both `net11.0` (cross-platform UI and CLI/mock backends) and `net11.0-windows10.0.26100.0` (Windows COM backend). A Native AOT publish requires Windows and Visual Studio C++ build tools.
 
 ### Build from source
 
@@ -128,17 +128,17 @@ git clone https://github.com/harder/wingetscout.git
 cd wingetscout
 
 # Intel or AMD
-dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r win-x64
-.\bin\Release\net10.0-windows10.0.26100.0\win-x64\publish\wingetscout.exe
+dotnet publish WinGetScout.csproj -c Release -f net11.0-windows10.0.26100.0 -r win-x64
+.\bin\Release\net11.0-windows10.0.26100.0\win-x64\publish\wingetscout.exe
 
 # Or, on Windows ARM
-dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r win-arm64
-.\bin\Release\net10.0-windows10.0.26100.0\win-arm64\publish\wingetscout.exe
+dotnet publish WinGetScout.csproj -c Release -f net11.0-windows10.0.26100.0 -r win-arm64
+.\bin\Release\net11.0-windows10.0.26100.0\win-arm64\publish\wingetscout.exe
 ```
 
-Keep the complete `publish` folder for COM support. For UI work on Windows, Linux, or macOS, run `dotnet run -f net10.0 -- --mock` to use sample packages without changing the machine's package state. On Windows, `dotnet run -f net10.0-windows10.0.26100.0 -r win-x64` (or `win-arm64`) exercises the COM-capable build.
+Keep the complete `publish` folder for COM support. For UI work on Windows, Linux, or macOS, run `dotnet run -f net11.0 -- --mock` to use sample packages without changing the machine's package state. On Windows, `dotnet run -f net11.0-windows10.0.26100.0 -r win-x64` (or `win-arm64`) exercises the COM-capable build.
 
-To check COM activation on Windows, run `wingetscout.exe --comdiag` from the complete published folder. Use that diagnostic before relying on an interactive run; the app's header shows whether it activated COM or fell back to CLI. The identity build for local MSIX testing uses `dotnet publish WinGetScout.csproj -c Release -f net10.0-windows10.0.26100.0 -r win-x64 -p:WingetComMode=Identity` and requires package registration before COM activation.
+To check COM activation on Windows, run `wingetscout.exe --comdiag` from the complete published folder. Use that diagnostic before relying on an interactive run; the app's header shows whether it activated COM or fell back to CLI. The identity build for local MSIX testing uses `dotnet publish WinGetScout.csproj -c Release -f net11.0-windows10.0.26100.0 -r win-x64 -p:WingetComMode=Identity` and requires package registration before COM activation.
 
 Run the tests with:
 

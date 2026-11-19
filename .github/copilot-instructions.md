@@ -1,6 +1,6 @@
 # Scout for WinGet review context
 
-Scout is a .NET 10 terminal app. `WinGetScout.csproj` builds a cross-platform mock/CLI target and a Windows COM target; shipping binaries are Native AOT. The portable ZIP must retain the WinGet in-process COM DLLs beside `wingetscout.exe`. The standalone EXE uses the `winget.exe` CLI backend.
+Scout is a .NET 11 terminal app. `WinGetScout.csproj` builds a cross-platform mock/CLI target and a Windows COM target; shipping binaries are Native AOT. The portable ZIP must retain the WinGet in-process COM DLLs beside `wingetscout.exe`. The standalone EXE uses the `winget.exe` CLI backend.
 
 Use `docs/architecture.md` for the backend and UI boundaries, `docs/usage.md`
 for user-visible behavior, and `docs/index.md` for the other maintained guides.

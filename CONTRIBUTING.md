@@ -8,7 +8,7 @@ Scout for WinGet is a terminal app for managing Windows packages. Contributions 
 git clone https://github.com/harder/wingetscout
 cd wingetscout
 dotnet test --project tests/WinGetScout.Tests.csproj
-dotnet run -f net10.0 -- --mock           # UI iteration, any host
+dotnet run -f net11.0 -- --mock           # UI iteration, any host
 ```
 
 Building the actual AOT binary requires a **Windows host** with Visual Studio Build Tools (C++ workload). See [Build from source](README.md#build-from-source).
