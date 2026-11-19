@@ -1,5 +1,77 @@
 # Transitive dependency review
 
+## November 18 follow-up
+
+Reviewed Dependabot PRs #83 and #89–#93 together. The selected updates are
+Markdig 1.6.0, System.IO.Abstractions 23.0.0 (with its matching wrappers and
+Testably filesystem interface 11.0.0), Microsoft.Extensions roots 11.0.0,
+xUnit 4.0.3, MTP and its extensions 2.5.3, and the private test-only
+Microsoft.Bcl.AsyncInterfaces 11.0.0 reference.
+
+The Extensions 11.0.0 packages include net10.0 assets. The filesystem packages
+also retain net10.0, and AsyncInterfaces retains netstandard assets. These
+package versions do not require changing Scout's .NET 10 target or its pinned
+10.0.403 SDK. Keep all three lockfiles synchronized: the original application
+PRs changed only the portable lockfile, leaving both the test project's
+referenced-project graph and the Identity graph stale. Their NU1004 failures
+were correct locked-restore rejections; do not bypass locked mode.
+
+### Useful fixes and adoption decisions
+
+- [xUnit 4.0.3](https://xunit.net/releases/v3/4.0.3) fixes false premature-crash
+  detection and improves MTP cleanup-failure attribution and argument validation.
+  Scout's existing runner benefits without application changes. The release
+  also fixes result-file generation and assembly-fixture AOT compilation; Scout
+  currently runs managed tests, so the latter is not proof about shipping AOT.
+- MTP 2.5.3's [package-pinned source comparison](https://github.com/microsoft/testfx/compare/933377f07ac4bded77e820b0beef7d27e805cd89...0b1d8b5f7b2186835e2cf26292f3478f7cca087e)
+  includes cancellation/cleanup corrections and handling of uncorrelated
+  JSON-RPC errors without prematurely ending MTP sessions. Its source changelog
+  is stale; the published NuGet metadata establishes the 2.5.3 version. Keep
+  Platform, MSBuild, telemetry, and TRX abstractions on the same patch.
+- [Markdig 1.6.0](https://github.com/xoofx/markdig/releases/tag/1.6.0) adds an
+  opt-in table-of-contents extension and fixes normalization of custom containers
+  and footnotes. Scout uses Terminal.Gui's Markdown renderer for help and links,
+  not Markdown.Normalize. Do not enable TOC merely because the parser supports
+  it: Terminal.Gui's custom rendering pipeline would need separate validation.
+  Existing rendered-link, literal-text, wrapping, resize, and scroll tests cover
+  the integration actually used here.
+- [System.IO.Abstractions 23.0.0](https://github.com/TestableIO/System.IO.Abstractions/releases/tag/v23.0.0)
+  adds .NET 11 support and changes mock file/directory metadata to load lazily.
+  Scout does not consume TestingHelpers, so that mock fix has no direct product
+  effect. New hard-link/null-handle wrapper APIs are conditional additions;
+  Scout's .NET 10 file-dialog integration needs no new API calls. Keep the
+  abstraction, wrappers, and interface aligned and retain the actual SaveDialog
+  cancellation test.
+- Reviewed the [Extensions 11 compatibility changes](https://learn.microsoft.com/dotnet/core/compatibility/11#extensions)
+  against Terminal.Gui source `84ea67cb4b43c3e711b54dfb46d3facce078f292`.
+  Its configuration helpers add JSON streams and bind simple settings; the
+  reviewed path does not use chained configuration providers, file-provider
+  reload callbacks, async options validation, or generic-host background
+  services. No Scout change is needed to opt into those unrelated features.
+  Retain explicit package references because Scout still targets .NET 10;
+  inclusion in the .NET 11 shared framework does not apply to this target.
+
+### Application Insights remains constrained
+
+Closed #83 without merging. MTP 2.5.3 still depends on Application Insights
+2.23.0, and its
+[AppInsightTelemetryClient](https://github.com/microsoft/testfx/blob/0b1d8b5f7b2186835e2cf26292f3478f7cca087e/src/Platform/Microsoft.Testing.Extensions.Telemetry/AppInsightTelemetryClient.cs)
+still calls `TrackEvent(name, properties, metrics)`. Application Insights 3.x
+[removed that overload](https://github.com/microsoft/ApplicationInsights-dotnet/blob/v3.2.0/BreakingChanges.md#trackevent).
+Preserve `[2.23.0,3.0.0)` even when ordinary tests are green. Revisit after the
+consuming MTP extension migrates its compiled API usage.
+
+### Validation
+
+The combined graph passes all 757 .NET tests and 14 CI-script tests on Linux
+using the pinned SDK. Windows compilation and locked restores of both
+architectures in both COM modes are checked separately. PR CI must pass the
+Windows test suite and x64/ARM64 portable and Identity Native AOT publish/smoke
+jobs before merging. Mock/AOT checks do not establish live COM activation or
+interactive terminal parity.
+
+## November 1 baseline
+
 Reviewed November 1, 2026, after the Terminal.Gui `.183` update reached main.
 The direct package references, SDK, and GitHub Actions were current, but their
 transitive minimum versions left 22 compatible package updates available.
